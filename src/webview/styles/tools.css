@@ -1,0 +1,510 @@
+/* ============================================================
+   Skipped Tool Group
+   ============================================================ */
+.gsd-skipped-group {
+  display: flex;
+  align-items: center;
+  gap: var(--gsd-space-sm);
+  padding: 4px 16px;
+  font-size: var(--gsd-font-size-md);
+  color: var(--gsd-color-text-muted);
+  opacity: 0.7;
+}
+.gsd-skipped-icon { font-size: var(--gsd-font-size-xs); opacity: 0.8; }
+.gsd-skipped-label { font-style: italic; }
+
+/* ============================================================
+   Steer Note
+   ============================================================ */
+.gsd-steer-note {
+  font-size: var(--gsd-font-size-md);
+  color: var(--gsd-color-text-muted);
+  padding: 4px 16px;
+  opacity: 0.8;
+}
+
+/* ============================================================
+   Tool Group (collapsed consecutive read-only tools)
+   ============================================================ */
+
+.gsd-tool-group {
+  margin: 6px 0 10px;
+  border-radius: var(--gsd-radius-lg);
+  border: 1px solid var(--gsd-tool-border);
+  overflow: hidden;
+}
+
+.gsd-tool-group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gsd-space-sm);
+  padding: 5px 10px;
+  background: var(--gsd-color-surface-hover);
+  cursor: pointer;
+  font-size: var(--gsd-font-size-sm);
+  font-weight: var(--gsd-font-weight-medium);
+  color: var(--gsd-color-tool-group-fg);
+  list-style: none;
+  letter-spacing: 0.3px;
+}
+
+.gsd-tool-group-header::-webkit-details-marker {
+  display: none;
+}
+
+.gsd-tool-group-icon {
+  flex-shrink: 0;
+}
+
+.gsd-tool-group-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gsd-tool-group-count {
+  font-size: var(--gsd-font-size-xs);
+  opacity: 0.4;
+  font-weight: var(--gsd-font-weight-normal);
+  margin-left: auto;
+}
+
+.gsd-tool-group-header .gsd-tool-chevron {
+  font-size: var(--gsd-font-size-xs);
+  opacity: 0.4;
+  transition: transform 0.15s ease;
+}
+
+.gsd-tool-group[open] > .gsd-tool-group-header .gsd-tool-chevron {
+  transform: rotate(90deg);
+}
+
+.gsd-tool-group-content {
+  padding: 4px 8px;
+}
+
+.gsd-tool-group-content .gsd-tool-segment {
+  margin: 2px 0;
+}
+
+/* ============================================================
+   Thinking Block
+   ============================================================ */
+
+.gsd-thinking-block {
+  margin: 6px 0 10px;
+  border-radius: var(--gsd-radius-lg);
+  border: 1px solid var(--gsd-tool-border);
+  overflow: hidden;
+}
+
+.gsd-thinking-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gsd-space-sm);
+  padding: 5px 10px;
+  background: var(--gsd-color-surface-hover);
+  cursor: pointer;
+  font-size: var(--gsd-font-size-sm);
+  font-weight: var(--gsd-font-weight-medium);
+  color: var(--gsd-color-thinking-fg);
+  list-style: none;
+  letter-spacing: 0.3px;
+}
+
+.gsd-thinking-header::-webkit-details-marker {
+  display: none;
+}
+
+.gsd-thinking-header svg {
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.gsd-thinking-content {
+  padding: 10px 12px;
+  font-size: var(--gsd-font-size-md);
+  color: var(--gsd-color-text-muted);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  line-height: var(--gsd-line-height);
+  font-family: var(--gsd-font-family-mono);
+  opacity: 0.7;
+}
+
+.gsd-thinking-lines {
+  margin-left: auto;
+  font-size: var(--gsd-font-size-xs);
+  opacity: 0.4;
+  font-weight: var(--gsd-font-weight-normal);
+}
+
+/* ============================================================
+   Thinking Dots (animated)
+   ============================================================ */
+
+.gsd-thinking-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 4px;
+}
+
+.gsd-thinking-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: var(--gsd-radius-circle);
+  background: var(--gsd-color-text-link);
+  opacity: 0.25;
+  animation: gsd-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.gsd-thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.gsd-thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes gsd-dot-pulse {
+  0%, 80%, 100% { opacity: 0.15; transform: scale(0.8); }
+  40% { opacity: 0.7; transform: scale(1.1); }
+}
+
+/* Override reduced-motion blanket rule for the thinking dots — they are a
+   meaningful loading indicator, not decorative. Use a gentler animation
+   instead of killing iteration count which leaves them frozen after 1 cycle. */
+@media (prefers-reduced-motion: reduce) {
+  .gsd-thinking-dots span {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+    animation-name: gsd-dot-fade !important;
+  }
+}
+
+@keyframes gsd-dot-fade {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.6; }
+}
+
+/* ============================================================
+   Tool Call Blocks
+   ============================================================ */
+
+.gsd-tool-block {
+  margin: 6px 0;
+  border-radius: var(--gsd-tool-radius);
+  border: var(--gsd-border-width) solid var(--gsd-tool-border);
+  overflow: hidden;
+  font-size: var(--gsd-font-size-md);
+  position: relative;
+}
+
+.gsd-tool-block.running {
+  border-color: var(--gsd-color-accent-border);
+  box-shadow: 0 0 0 1px var(--gsd-color-accent-subtle);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--gsd-color-accent-bg-faint) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: gsd-tool-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes gsd-tool-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Completion flash: a compositor-friendly opacity fade on a ::after overlay
+   avoids triggering paint/layout that animating border-color would cause. */
+.gsd-tool-block.done::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: var(--gsd-border-width) solid var(--gsd-color-accent-border);
+  pointer-events: none;
+  animation: gsd-tool-complete 0.35s ease-out forwards;
+}
+
+@keyframes gsd-tool-complete {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+.gsd-tool-block.error {
+  border-color: var(--gsd-color-error-border);
+}
+
+.gsd-tool-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gsd-space-sm);
+  padding: 4px 10px;
+  background: var(--gsd-color-surface-faintest);
+  cursor: pointer;
+  user-select: none;
+  min-height: 28px;
+  transition: background 0.1s;
+}
+
+.gsd-tool-header:hover {
+  background: var(--gsd-color-border-faint);
+}
+
+/* Spinner for running tools */
+.gsd-tool-spinner {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--gsd-color-accent-subtle-border);
+  border-top-color: var(--gsd-color-text-link);
+  border-radius: var(--gsd-radius-circle);
+  animation: gsd-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.gsd-tool-icon {
+  font-size: var(--gsd-font-size-sm);
+  flex-shrink: 0;
+  line-height: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.gsd-tool-icon.success {
+  color: var(--gsd-color-success);
+}
+
+.gsd-tool-icon.error {
+  color: var(--gsd-color-error-fg);
+}
+
+.gsd-tool-cat-icon {
+  font-size: var(--gsd-font-size-sm);
+  flex-shrink: 0;
+  line-height: var(--gsd-line-height-none);
+  opacity: 0.7;
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  vertical-align: middle;
+}
+
+.gsd-tool-name {
+  font-weight: var(--gsd-font-weight-semibold);
+  color: var(--gsd-color-text-link);
+  flex-shrink: 0;
+  font-size: var(--gsd-font-size-sm);
+  font-family: var(--gsd-font-family-mono);
+  line-height: 16px;
+}
+
+.gsd-tool-arg {
+  color: var(--gsd-color-text-muted);
+  font-family: var(--gsd-font-family-mono);
+  font-size: var(--gsd-font-size-sm);
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  opacity: 0.65;
+}
+
+.gsd-tool-header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--gsd-space-sm);
+  flex-shrink: 0;
+}
+
+.gsd-tool-duration {
+  color: var(--gsd-color-text-muted);
+  font-size: var(--gsd-font-size-xs);
+  opacity: 0.5;
+  font-family: var(--gsd-font-family-mono);
+}
+
+.gsd-tool-parallel-badge {
+  font-size: var(--gsd-font-size-xs);
+  color: var(--gsd-color-warning);
+  opacity: 0.85;
+  letter-spacing: 0;
+}
+
+.gsd-tool-block.parallel.running .gsd-tool-parallel-badge {
+  animation: gsd-parallel-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes gsd-parallel-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.gsd-tool-chevron {
+  font-size: var(--gsd-font-size-xs);
+  opacity: 0.35;
+  transition: transform 0.15s;
+}
+
+.gsd-tool-block:not(.collapsed) .gsd-tool-chevron {
+  transform: rotate(90deg);
+}
+
+/* Output area */
+.gsd-tool-output {
+  border-top: var(--gsd-border-width) solid var(--gsd-color-border-subtle);
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: var(--gsd-color-surface-dim);
+}
+
+.gsd-tool-block.collapsed .gsd-tool-output {
+  display: none;
+}
+
+.gsd-tool-output pre {
+  margin: 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: var(--gsd-font-family-mono);
+  font-size: var(--gsd-font-size-sm);
+  line-height: var(--gsd-line-height);
+}
+
+.gsd-tool-output-pending {
+  display: block;
+  padding: 6px 10px;
+  color: var(--gsd-color-text-muted);
+  font-style: italic;
+  font-size: var(--gsd-font-size-sm);
+  opacity: 0.6;
+}
+
+.gsd-tool-output-truncated {
+  padding: 3px 10px 5px;
+  font-size: var(--gsd-font-size-xs);
+  color: var(--gsd-color-text-muted);
+  opacity: 0.45;
+  font-style: italic;
+  font-family: var(--gsd-font-family-mono);
+}
+
+/* Tool category accent colors */
+.gsd-tool-block.cat-file .gsd-tool-name { color: var(--gsd-color-icon-file); }
+.gsd-tool-block.cat-shell .gsd-tool-name { color: var(--gsd-color-ansi-green); }
+.gsd-tool-block.cat-browser .gsd-tool-name { color: var(--gsd-color-ansi-cyan); }
+.gsd-tool-block.cat-search .gsd-tool-name { color: var(--gsd-color-ansi-magenta); }
+.gsd-tool-block.cat-agent .gsd-tool-name { color: var(--gsd-color-ansi-yellow); }
+.gsd-tool-block.cat-process .gsd-tool-name { color: var(--gsd-color-ansi-blue); }
+
+/* Agent meta — description shown below header; pills are inline in header */
+.gsd-agent-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 4px 28px;
+  font-size: 0.8em;
+  opacity: 0.85;
+}
+.gsd-agent-meta-pills {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.gsd-agent-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--gsd-color-ansi-yellow);
+  color: #1e1e1e;
+  font-size: 0.85em;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.gsd-agent-desc {
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  font-size: 0.85em;
+}
+.gsd-agent-usage {
+  display: flex;
+  gap: 4px;
+  padding: 2px 8px 4px 28px;
+}
+
+/* ============================================================
+   Server-Side Tool (Anthropic native web search, etc.)
+   ============================================================ */
+
+.gsd-server-tool-segment {
+  margin: 4px 0;
+}
+
+.gsd-server-tool-card {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gsd-space-sm);
+  padding: 3px 10px;
+  border-radius: var(--gsd-radius-md);
+  border: 1px solid var(--gsd-tool-border);
+  background: var(--gsd-color-surface-hover);
+  font-size: var(--gsd-font-size-sm);
+  color: var(--gsd-color-text-muted);
+  max-width: 100%;
+}
+
+.gsd-server-tool-card.running {
+  border-color: var(--gsd-color-ansi-magenta);
+  border-style: dashed;
+}
+
+.gsd-server-tool-card.done {
+  opacity: 0.7;
+}
+
+.gsd-server-tool-icon {
+  flex-shrink: 0;
+  font-size: var(--gsd-font-size-md);
+}
+
+.gsd-server-tool-name {
+  font-weight: var(--gsd-font-weight-medium);
+  color: var(--gsd-color-ansi-magenta);
+  white-space: nowrap;
+}
+
+.gsd-server-tool-query {
+  color: var(--gsd-color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+  font-style: italic;
+}
+
+.gsd-server-tool-check {
+  color: var(--gsd-color-ansi-green);
+  font-weight: var(--gsd-font-weight-bold);
+}
+
+.gsd-server-tool-count {
+  font-size: var(--gsd-font-size-xs);
+  opacity: 0.6;
+  margin-left: auto;
+}

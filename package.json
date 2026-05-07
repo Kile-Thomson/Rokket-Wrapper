@@ -1,0 +1,233 @@
+{
+	"name": "rokket-wrapper",
+	"displayName": "RokketWrapper — Claude Code GUI",
+	"description": "A premium VS Code GUI for Claude Code CLI — streaming chat UI, Telegram relay, voice input, and tool visualizations.",
+	"version": "0.1.0",
+	"publisher": "rokketek",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Kile-Thomson/RokketWrapper"
+	},
+	"icon": "resources/rokket-icon.png",
+	"engines": {
+		"vscode": "^1.94.0"
+	},
+	"categories": [
+		"AI",
+		"Chat",
+		"Machine Learning",
+		"Other"
+	],
+	"keywords": [
+		"ai",
+		"agent",
+		"coding agent",
+		"claude",
+		"claude code",
+		"anthropic",
+		"openai",
+		"llm",
+		"chat",
+		"copilot",
+		"voice",
+		"telegram"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./dist/extension.js",
+	"extensionKind": [
+		"workspace",
+		"ui"
+	],
+	"contributes": {
+		"configuration": {
+			"title": "RokketWrapper",
+			"properties": {
+				"rokketWrapper.claudeCodePath": {
+					"type": "string",
+					"default": "",
+					"description": "Path to the claude executable. Leave empty to auto-discover from PATH."
+				},
+				"rokketWrapper.useCtrlEnterToSend": {
+					"type": "boolean",
+					"default": false,
+					"description": "Use Ctrl/Cmd+Enter to send prompts instead of Enter. Allows Enter for newlines."
+				},
+				"rokketWrapper.autoUpdate": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically check for new versions on GitHub Releases."
+				},
+				"rokketWrapper.githubToken": {
+					"type": "string",
+					"default": "",
+					"description": "GitHub personal access token for update checks on private repos. Also reads from ROKKET_WRAPPER_GITHUB_TOKEN, GH_TOKEN, or GITHUB_TOKEN env vars."
+				},
+				"rokketWrapper.preferredLocation": {
+					"type": "string",
+					"enum": [
+						"sidebar",
+						"panel"
+					],
+					"enumDescriptions": [
+						"Sidebar (Right)",
+						"Panel (New Tab)"
+					],
+					"default": "panel",
+					"description": "Where RokketWrapper opens by default."
+				},
+				"rokketWrapper.theme": {
+					"type": "string",
+					"enum": [
+						"classic",
+						"phosphor",
+						"clarity",
+						"forge"
+					],
+					"enumDescriptions": [
+						"Classic — the stable default theme",
+						"Phosphor — matrix-inspired green phosphor on black",
+						"Clarity — ultra-clean modern flat design, maximum readability",
+						"Forge — dark industrial metallic with inset shadows"
+					],
+					"default": "forge",
+					"description": "UI theme for the RokketWrapper panel."
+				},
+				"rokketWrapper.telegramGroupId": {
+					"type": "number",
+					"default": 0,
+					"description": "Telegram group chat ID (set automatically by Telegram Setup)."
+				},
+				"rokketWrapper.telegramChatTitle": {
+					"type": "string",
+					"default": "",
+					"description": "Telegram group chat title (set automatically by Telegram Setup)."
+				},
+				"rokketWrapper.telegramBotUsername": {
+					"type": "string",
+					"default": "",
+					"description": "Telegram bot username (set automatically by Telegram Setup)."
+				},
+				"rokketWrapper.telegramStreamingGranularity": {
+					"type": "string",
+					"default": "throttled",
+					"enum": [
+						"off",
+						"throttled",
+						"final-only"
+					],
+					"description": "Controls how RokketWrapper streams messages to Telegram."
+				},
+				"rokketWrapper.voiceTranscriptionProvider": {
+					"type": "string",
+					"default": "openai",
+					"enum": [
+						"openai",
+						"azure",
+						"xai"
+					],
+					"enumDescriptions": [
+						"OpenAI Whisper (whisper-1)",
+						"Azure Speech Services",
+						"xAI / Grok (whisper-large-v3)"
+					],
+					"description": "Which provider to use for voice-to-text transcription."
+				},
+				"rokketWrapper.azureSpeechRegion": {
+					"type": "string",
+					"default": "eastus",
+					"description": "Azure region for Speech Services (e.g. eastus, westus2, westeurope)."
+				}
+			}
+		},
+		"commands": [
+			{
+				"command": "rokketWrapper.open",
+				"title": "RokketWrapper: Open",
+				"icon": {
+					"light": "resources/gsd-logo.svg",
+					"dark": "resources/gsd-logo.svg"
+				}
+			},
+			{
+				"command": "rokketWrapper.openInTab",
+				"title": "RokketWrapper: Open in New Tab"
+			},
+			{
+				"command": "rokketWrapper.openInSidebar",
+				"title": "RokketWrapper: Open in Side Bar"
+			},
+			{
+				"command": "rokketWrapper.focus",
+				"title": "RokketWrapper: Focus Input"
+			},
+			{
+				"command": "rokketWrapper.telegramSetup",
+				"title": "RokketWrapper: Telegram Setup"
+			},
+			{
+				"command": "rokketWrapper.setOpenAiApiKey",
+				"title": "RokketWrapper: Set OpenAI API Key"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "rokketWrapper-sidebar",
+					"title": "RokketWrapper",
+					"icon": "resources/gsd-logo.svg"
+				}
+			]
+		},
+		"views": {
+			"rokketWrapper-sidebar": [
+				{
+					"type": "webview",
+					"id": "rokketWrapper.sidebarView",
+					"name": "RokketWrapper"
+				}
+			]
+		},
+		"keybindings": [
+			{
+				"command": "rokketWrapper.focus",
+				"key": "ctrl+shift+g",
+				"mac": "cmd+shift+g"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run build",
+		"build": "npm run build:extension && npm run build:webview",
+		"build:extension": "esbuild src/extension/index.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --minify --tree-shaking=true --drop:console --metafile=dist/meta-extension.json",
+		"build:webview": "esbuild src/webview/index.ts --bundle --outfile=dist/webview/index.js --format=iife --platform=browser --sourcemap --loader:.css=css --define:process.env.NODE_ENV=\\\"production\\\" --minify --tree-shaking=true --drop:console --metafile=dist/meta-webview.json",
+		"watch": "concurrently \"npm run watch:extension\" \"npm run watch:webview\"",
+		"watch:extension": "esbuild src/extension/index.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+		"watch:webview": "esbuild src/webview/index.ts --bundle --outfile=dist/webview/index.js --format=iife --platform=browser --sourcemap --loader:.css=css --define:process.env.NODE_ENV=\\\"production\\\" --watch",
+		"package": "vsce package",
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
+		"lint": "eslint src/"
+	},
+	"devDependencies": {
+		"@eslint/js": "^10.0.1",
+		"@types/dompurify": "^3.0.5",
+		"@types/node": "^20.11.0",
+		"@types/vscode": "^1.94.0",
+		"@vitest/coverage-v8": "^4.1.0",
+		"@vscode/vsce": "^3.0.0",
+		"concurrently": "^8.2.0",
+		"esbuild": "^0.27.0",
+		"eslint": "^10.0.3",
+		"jsdom": "^28.1.0",
+		"typescript": "^5.5.0",
+		"typescript-eslint": "^8.57.0",
+		"vitest": "^4.1.0"
+	},
+	"dependencies": {
+		"dompurify": "^3.3.3",
+		"marked": "^15.0.0"
+	}
+}

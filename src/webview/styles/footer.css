@@ -1,0 +1,115 @@
+/* ============================================================
+   Footer / Status Bar
+   ============================================================ */
+
+.gsd-footer {
+  display: flex;
+  flex-direction: column;
+  padding: 3px 12px;
+  font-size: var(--gsd-font-size-xs);
+  color: var(--gsd-color-text-muted);
+  border-top: var(--gsd-border-width) solid var(--gsd-footer-border);
+  background: var(--gsd-footer-bg);
+  flex-shrink: 0;
+  overflow: hidden;
+  font-family: var(--gsd-font-family-mono);
+  line-height: var(--gsd-line-height-relaxed);
+  opacity: 0.75;
+}
+
+/* ── Widgets (ambient status bars from setWidget) ── */
+
+.gsd-widgets {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.gsd-widgets:empty {
+  display: none;
+}
+
+.gsd-widget {
+  font-size: var(--gsd-font-size-xs);
+  padding: 3px 12px;
+  font-family: var(--gsd-font-family-mono);
+  color: var(--gsd-color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid var(--gsd-color-border);
+}
+
+.gsd-widget-segment {
+  padding: 0 2px;
+}
+
+.gsd-widget-segment.ok {
+  color: var(--gsd-color-ansi-green);
+}
+
+.gsd-widget-segment.warning {
+  color: var(--gsd-color-text-warning);
+}
+
+.gsd-widget-segment.error {
+  color: var(--gsd-color-text-error);
+}
+
+.gsd-widget-sep {
+  color: var(--gsd-color-text-muted);
+  opacity: 0.3;
+  padding: 0 4px;
+}
+
+.gsd-footer-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gsd-space-md);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.gsd-footer-cwd {
+  cursor: default;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.gsd-footer-skills {
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Skill pills ── */
+
+.gsd-skill-pills {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+
+.gsd-skill-pills::before {
+  content: "·";
+  opacity: 0.4;
+  margin-right: 2px;
+}
+
+.gsd-skill-pill {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: var(--gsd-font-size-xs);
+  background: var(--gsd-badge-bg);
+  color: var(--gsd-badge-fg);
+  line-height: var(--gsd-line-height);
+  white-space: nowrap;
+}

@@ -1,0 +1,546 @@
+/* ============================================================
+   File Path Links
+   ============================================================ */
+
+.gsd-file-link {
+  color: var(--gsd-color-text-link);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.gsd-file-link:hover {
+  text-decoration-style: solid;
+}
+
+/* ============================================================
+   Selection & Copy
+   ============================================================ */
+
+::selection {
+  background: var(--gsd-color-selection-bg);
+  color: var(--gsd-color-selection-fg);
+}
+
+.gsd-assistant-text,
+.gsd-tool-output,
+.gsd-code-block code,
+.gsd-thinking-content {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ============================================================
+   Update Card
+   ============================================================ */
+
+.gsd-update-card {
+  margin: 8px 4px;
+  border: 1px solid var(--gsd-color-border-strong);
+  border-radius: var(--gsd-radius-xl);
+  background: var(--gsd-color-surface-elevated);
+  overflow: hidden;
+  animation: gsd-update-slide-in 0.3s ease-out;
+}
+
+@keyframes gsd-update-slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.gsd-update-card.dismissing {
+  animation: gsd-update-slide-out 0.3s ease-in forwards;
+}
+
+@keyframes gsd-update-slide-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-8px); }
+}
+
+.gsd-update-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gsd-space-md);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--gsd-color-border-strong);
+}
+
+.gsd-update-icon {
+  font-size: var(--gsd-font-size-xl);
+}
+
+.gsd-update-title {
+  font-size: var(--gsd-font-size-base);
+  font-weight: var(--gsd-font-weight-semibold);
+  color: var(--gsd-color-text);
+  flex: 1;
+}
+
+.gsd-update-current {
+  font-size: var(--gsd-font-size-sm);
+  color: var(--gsd-color-text-muted);
+}
+
+.gsd-update-notes {
+  padding: 10px 14px;
+  font-size: var(--gsd-font-size-md);
+  line-height: var(--gsd-line-height);
+  color: var(--gsd-color-text-muted);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.gsd-update-notes h3 {
+  font-size: var(--gsd-font-size-base);
+  font-weight: var(--gsd-font-weight-semibold);
+  color: var(--gsd-color-text);
+  margin: 8px 0 4px;
+}
+
+.gsd-update-notes h3:first-child {
+  margin-top: 0;
+}
+
+.gsd-update-notes h4 {
+  font-size: var(--gsd-font-size-md);
+  font-weight: var(--gsd-font-weight-semibold);
+  color: var(--gsd-color-text);
+  margin: 6px 0 3px;
+}
+
+.gsd-update-notes ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.gsd-update-notes li {
+  margin: 2px 0;
+}
+
+.gsd-update-notes code {
+  background: var(--gsd-color-surface-highlight);
+  padding: 1px 4px;
+  border-radius: var(--gsd-radius-sm);
+  font-family: var(--gsd-font-family-mono);
+  font-size: var(--gsd-font-size-sm);
+}
+
+.gsd-update-notes strong {
+  color: var(--gsd-color-text);
+  font-weight: var(--gsd-font-weight-semibold);
+}
+
+.gsd-update-actions {
+  display: flex;
+  gap: var(--gsd-space-md);
+  padding: 10px 14px;
+  border-top: 1px solid var(--gsd-color-border-strong);
+}
+
+.gsd-update-btn {
+  padding: 5px 12px;
+  border-radius: var(--gsd-radius-md);
+  border: 1px solid var(--gsd-color-btn-border);
+  background: transparent;
+  color: var(--gsd-color-text);
+  font-size: var(--gsd-font-size-md);
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.gsd-update-btn:hover {
+  background: var(--gsd-color-surface-highlight-dim);
+}
+
+.gsd-update-btn.primary {
+  background: var(--gsd-color-accent);
+  color: var(--gsd-color-accent-fg);
+  border-color: transparent;
+  font-weight: var(--gsd-font-weight-medium);
+}
+
+.gsd-update-btn.primary:hover {
+  background: var(--gsd-color-accent-hover);
+}
+
+.gsd-update-btn.dismiss {
+  margin-left: auto;
+  opacity: 0.6;
+  border: none;
+}
+
+.gsd-update-btn.dismiss:hover {
+  opacity: 1;
+}
+
+/* ============================================================
+   Header version badge
+   ============================================================ */
+
+.gsd-header-version {
+  font-size: var(--gsd-font-size-sm);
+  color: var(--gsd-color-text-link);
+  cursor: pointer;
+  padding: 1px 6px;
+  border-radius: var(--gsd-radius-md);
+  transition: color 0.15s, background 0.15s;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.gsd-header-version:hover {
+  color: var(--gsd-color-text-link-active);
+  background: var(--gsd-color-surface-highlight);
+  text-decoration-style: solid;
+}
+
+/* ============================================================
+   Focus indicators
+   ============================================================ */
+
+.gsd-action-btn:focus-visible,
+.gsd-header-version:focus-visible,
+.gsd-welcome-chip:focus-visible,
+.gsd-copy-btn:focus-visible,
+.gsd-copy-response-btn:focus-visible,
+.gsd-scroll-fab:focus-visible,
+.gsd-tool-header[role="button"]:focus-visible,
+.gsd-tool-group-header[role="button"]:focus-visible,
+.gsd-slash-item:focus-visible,
+.gsd-stale-echo-bar:focus-visible,
+.gsd-model-picker [role="option"]:focus-visible,
+.gsd-thinking-picker [role="option"]:focus-visible,
+.gsd-ui-option-btn:focus-visible,
+.gsd-session-item:focus-visible,
+.gsd-send-btn:focus-visible,
+.gsd-attach-btn:focus-visible,
+.gsd-voice-btn:focus-visible,
+.gsd-voice-cancel:focus-visible,
+.gsd-voice-settings-close:focus-visible,
+.gsd-voice-provider:focus-visible,
+.gsd-voice-key-save:focus-visible,
+.gsd-icon-btn:focus-visible,
+.gsd-overlay-btn:focus-visible,
+.gsd-visualizer-close:focus-visible,
+.gsd-changelog-close:focus-visible,
+.gsd-settings-option:focus-visible,
+.gsd-session-history-item:focus-visible,
+.gsd-ui-btn:focus-visible,
+.gsd-fork-btn:focus-visible,
+.gsd-whats-new-close:focus-visible,
+.gsd-session-history-close:focus-visible,
+.gsd-ui-cancel-btn:focus-visible,
+.gsd-ui-multi-cancel:focus-visible,
+.gsd-model-picker-close:focus-visible,
+.gsd-thinking-picker-close:focus-visible,
+.gsd-update-btn:focus-visible,
+.gsd-file-chip-remove:focus-visible,
+.gsd-image-remove:focus-visible,
+.gsd-visualizer-tab:focus-visible,
+.gsd-model-badge:focus-visible,
+.gsd-thinking-badge:focus-visible,
+.gsd-file-link:focus-visible,
+.gsd-session-action-btn:focus-visible,
+.gsd-ui-multi-option:focus-visible,
+.gsd-link:focus-visible,
+.gsd-welcome-attribution:focus-visible,
+.gsd-ollama-btn:focus-visible,
+.gsd-ollama-btn--load:focus-visible,
+.gsd-ollama-btn--remove:focus-visible {
+  outline: 2px solid var(--gsd-color-border-focus);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Pressed / active states
+   ============================================================ */
+
+.gsd-icon-btn:active,
+.gsd-overlay-btn:active,
+.gsd-copy-btn:active,
+.gsd-copy-response-btn:active,
+.gsd-model-picker-close:active,
+.gsd-thinking-picker-close:active,
+.gsd-visualizer-close:active,
+.gsd-changelog-close:active,
+.gsd-session-history-close:active,
+.gsd-whats-new-close:active,
+.gsd-update-btn:active,
+.gsd-file-chip-remove:active,
+.gsd-session-action-btn:active,
+.gsd-ui-multi-option:active,
+.gsd-model-badge:active,
+.gsd-thinking-badge:active,
+.gsd-visualizer-tab:active,
+.gsd-file-link:active,
+.gsd-link:active,
+.gsd-welcome-attribution:active,
+.gsd-fork-btn:active,
+.gsd-stale-echo-bar:active,
+.gsd-header-version:active,
+.gsd-ollama-btn:active {
+  opacity: 0.8;
+}
+
+/* ============================================================
+   Streaming: hide copy buttons on incomplete code blocks
+   ============================================================ */
+
+.gsd-entry-assistant.streaming .gsd-copy-btn {
+  display: none;
+}
+
+/* ============================================================
+   Loading spinner
+   ============================================================ */
+
+.gsd-loading-spinner {
+  display: flex;
+  align-items: center;
+  gap: var(--gsd-space-md);
+  padding: 16px 14px;
+  font-size: var(--gsd-font-size-md);
+  color: var(--gsd-color-text-muted);
+}
+
+.gsd-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--gsd-color-border-strong);
+  border-top-color: var(--gsd-color-text-link);
+  border-radius: var(--gsd-radius-circle);
+  animation: gsd-spin 0.6s linear infinite;
+}
+
+@keyframes gsd-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Override reduced-motion blanket rule for spinners — they are functional
+   loading indicators, not decorative. Keep them spinning. */
+@media (prefers-reduced-motion: reduce) {
+  .gsd-tool-spinner,
+  .gsd-spinner,
+  .gsd-logo.working {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+/* ============================================================
+   What's New Card
+   ============================================================ */
+
+.gsd-whats-new {
+  margin: 8px 4px;
+  border: 1px solid var(--gsd-color-border-strong);
+  border-radius: var(--gsd-radius-xl);
+  background: var(--gsd-color-surface-elevated);
+  overflow: hidden;
+  animation: gsd-update-slide-in 0.3s ease-out;
+}
+
+.gsd-whats-new.dismissing {
+  animation: gsd-update-slide-out 0.3s ease-in forwards;
+}
+
+.gsd-whats-new-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gsd-space-md);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--gsd-color-border-strong);
+}
+
+.gsd-whats-new-icon {
+  font-size: var(--gsd-font-size-xl);
+}
+
+.gsd-whats-new-title {
+  font-size: var(--gsd-font-size-base);
+  font-weight: var(--gsd-font-weight-semibold);
+  color: var(--gsd-color-text);
+  flex: 1;
+}
+
+.gsd-whats-new-close {
+  background: none;
+  border: none;
+  color: var(--gsd-color-text-muted);
+  cursor: pointer;
+  font-size: var(--gsd-font-size-lg);
+  padding: 2px 6px;
+  border-radius: var(--gsd-radius-md);
+  line-height: var(--gsd-line-height-none);
+}
+
+.gsd-whats-new-close:hover {
+  background: var(--gsd-color-surface-highlight);
+  color: var(--gsd-color-text);
+}
+
+.gsd-whats-new-notes {
+  padding: 10px 14px;
+  font-size: var(--gsd-font-size-md);
+  line-height: var(--gsd-line-height);
+  color: var(--gsd-color-text-muted);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.gsd-whats-new-notes h3,
+.gsd-whats-new-notes h4 {
+  font-weight: var(--gsd-font-weight-semibold);
+  color: var(--gsd-color-text);
+}
+
+.gsd-whats-new-notes h3 {
+  font-size: var(--gsd-font-size-base);
+  margin: 8px 0 4px;
+}
+
+.gsd-whats-new-notes h3:first-child {
+  margin-top: 0;
+}
+
+.gsd-whats-new-notes h4 {
+  font-size: var(--gsd-font-size-md);
+  margin: 6px 0 3px;
+}
+
+.gsd-whats-new-notes ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.gsd-whats-new-notes li {
+  margin: 2px 0;
+}
+
+.gsd-whats-new-notes code {
+  background: var(--gsd-color-surface-highlight);
+  padding: 1px 4px;
+  border-radius: var(--gsd-radius-sm);
+  font-family: var(--gsd-font-family-mono);
+  font-size: var(--gsd-font-size-sm);
+}
+
+.gsd-whats-new-notes strong {
+  color: var(--gsd-color-text);
+  font-weight: var(--gsd-font-weight-semibold);
+}
+
+/* ============================================================
+   Stale Echo — collapsed background job notification echoes
+   ============================================================ */
+
+.gsd-stale-echo {
+  margin: 2px 0;
+}
+
+.gsd-stale-echo-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--gsd-space-sm);
+  padding: 4px 10px;
+  border-radius: var(--gsd-radius-md);
+  background: var(--gsd-color-selection-inactive);
+  cursor: pointer;
+  opacity: 0.6;
+  font-size: var(--gsd-font-size-md);
+  color: var(--gsd-color-text-muted);
+  transition: opacity 0.15s;
+  user-select: none;
+}
+
+.gsd-stale-echo-bar:hover {
+  opacity: 0.9;
+}
+
+.gsd-stale-echo-icon {
+  font-size: var(--gsd-font-size-sm);
+  flex-shrink: 0;
+}
+
+.gsd-stale-echo-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gsd-stale-echo-full {
+  margin-top: 4px;
+}
+
+/* ============================================================
+   Pruned Entries Indicator (S01 entry cap)
+   ============================================================ */
+
+.gsd-pruned-indicator {
+  text-align: center;
+  color: var(--gsd-color-text-muted);
+  font-size: var(--gsd-font-size-md);
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--gsd-color-border-subtle);
+  opacity: 0.8;
+}
+
+/* ============================================================
+   Ollama Action Buttons (inline in model tables)
+   ============================================================ */
+
+.gsd-ollama-btn {
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 0 2px;
+  border: 1px solid var(--gsd-color-btn-border);
+  border-radius: var(--gsd-radius-md);
+  background: transparent;
+  color: var(--gsd-color-text);
+  font-size: var(--gsd-font-size-sm);
+  font-family: var(--gsd-font-family);
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  line-height: var(--gsd-line-height-tight);
+  vertical-align: middle;
+}
+
+.gsd-ollama-btn:hover {
+  background: var(--gsd-color-surface-highlight-dim);
+}
+
+.gsd-ollama-btn--load {
+  color: var(--gsd-color-accent);
+  border-color: var(--gsd-color-accent);
+}
+
+.gsd-ollama-btn--load:hover {
+  background: var(--gsd-color-accent);
+  color: var(--gsd-color-accent-fg);
+}
+
+.gsd-ollama-btn--unload {
+  color: var(--gsd-color-text-muted);
+  border-color: var(--gsd-color-border-strong);
+}
+
+.gsd-ollama-btn--remove {
+  color: var(--gsd-color-error);
+  border-color: var(--gsd-color-error);
+  opacity: 0.7;
+}
+
+.gsd-ollama-btn--remove:hover {
+  opacity: 1;
+  background: var(--gsd-color-error);
+  color: var(--gsd-color-accent-fg);
+}
+
+.gsd-ollama-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}

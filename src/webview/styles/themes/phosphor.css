@@ -1,0 +1,156 @@
+/* ============================================================
+   PHOSPHOR — Terminal that grew a UI
+   ============================================================
+   CRT aesthetic. Scanlines, phosphor glow, monospace everything,
+   terminal-green accents. User messages are commands. Tool calls
+   are shell executions. Zero border-radius anywhere.
+   ============================================================ */
+
+/* -----------------------------------------------------------
+   Token overrides — all color/surface/border theming via tokens
+   ----------------------------------------------------------- */
+.gsd-app[data-theme="phosphor"] {
+  /* Theme palette (internal references) */
+  --phosphor: #00ff41;
+  --phosphor-dim: rgba(0, 255, 65, 0.6);
+  --phosphor-faint: rgba(0, 255, 65, 0.08);
+  --phosphor-glow: 0 0 8px rgba(0, 255, 65, 0.3);
+  --phosphor-bg: #050505;
+  --phosphor-surface: #0a0d0a;
+  --phosphor-border: rgba(0, 255, 65, 0.1);
+  --phosphor-text: #b8c4b8;
+
+  /* Semantic token overrides */
+  --gsd-color-bg: var(--phosphor-bg);
+  --gsd-color-surface: var(--phosphor-bg);
+  --gsd-color-surface-elevated: var(--phosphor-surface);
+  --gsd-color-surface-hover: var(--phosphor-faint);
+  --gsd-color-surface-active: rgba(0, 255, 65, 0.06);
+  --gsd-color-text: var(--phosphor-text);
+  --gsd-color-text-muted: var(--phosphor-dim);
+  --gsd-color-text-link: var(--phosphor);
+  --gsd-color-border: var(--phosphor-border);
+  --gsd-color-border-subtle: var(--phosphor-border);
+  --gsd-color-border-strong: rgba(0, 255, 65, 0.15);
+  --gsd-color-border-focus: var(--phosphor);
+  --gsd-color-accent: var(--phosphor);
+  --gsd-color-accent-fg: var(--phosphor-bg);
+  --gsd-color-accent-hover: rgba(0, 255, 65, 0.8);
+
+  /* Component token overrides */
+  --gsd-header-bg: var(--phosphor-bg);
+  --gsd-header-border: var(--phosphor-border);
+  --gsd-footer-bg: var(--phosphor-bg);
+  --gsd-footer-border: var(--phosphor-border);
+  --gsd-input-bg: transparent;
+  --gsd-input-fg: var(--phosphor);
+  --gsd-input-border: var(--phosphor-border);
+  --gsd-input-placeholder: rgba(0, 255, 65, 0.2);
+  --gsd-code-bg: rgba(0, 255, 65, 0.02);
+  --gsd-tool-bg: rgba(0, 255, 65, 0.02);
+  --gsd-tool-border: rgba(0, 255, 65, 0.2);
+  --gsd-overlay-bg: var(--phosphor-bg);
+  --gsd-overlay-border: var(--phosphor-border);
+  --gsd-overlay-shadow: 0 0 20px rgba(0, 255, 65, 0.05);
+  --gsd-toast-bg: var(--phosphor-bg);
+  --gsd-toast-border: var(--phosphor-border);
+  --gsd-scrollbar-bg: rgba(0, 255, 65, 0.15);
+  --gsd-badge-bg: var(--phosphor-faint);
+  --gsd-badge-fg: var(--phosphor-dim);
+
+  /* Radius: zero everywhere for terminal aesthetic */
+  --gsd-radius-xs: 0;  --gsd-radius-sm: 0;  --gsd-radius-md: 0;
+  --gsd-radius-lg: 0;  --gsd-radius-xl: 0;  --gsd-radius-pill: 0;
+  --gsd-entry-radius: 0;  --gsd-code-radius: 0;  --gsd-tool-radius: 0;
+  --gsd-overlay-radius: 0;  --gsd-toast-radius: 0;
+}
+
+/* -----------------------------------------------------------
+   Structural overrides — visual effects that can't be tokens
+   ----------------------------------------------------------- */
+
+/* Scanline overlay */
+.gsd-app[data-theme="phosphor"]::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: var(--gsd-z-scanlines);
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.08) 2px, rgba(0, 0, 0, 0.08) 4px);
+}
+
+/* All text monospace */
+.gsd-app[data-theme="phosphor"], .gsd-app[data-theme="phosphor"] * {
+  font-family: var(--vscode-editor-fontFamily, 'Cascadia Code', 'Fira Code', Consolas, monospace) !important;
+}
+
+/* Title: phosphor glow + wide letter-spacing */
+.gsd-app[data-theme="phosphor"] .gsd-title {
+  color: var(--phosphor);
+  text-shadow: var(--phosphor-glow), 0 0 20px rgba(0, 255, 65, 0.15);
+  letter-spacing: 3px;
+}
+
+/* Logo working glow override */
+.gsd-app[data-theme="phosphor"] .gsd-logo.working::after {
+  background: radial-gradient(circle, rgba(0, 255, 65, 0.6) 0%, rgba(0, 255, 65, 0.2) 50%, transparent 70%);
+}
+
+/* User messages: right border terminal command style */
+.gsd-app[data-theme="phosphor"] .gsd-user-bubble {
+  background: transparent; border: none; border-right: 2px solid var(--phosphor);
+  color: var(--phosphor); padding: 4px 12px; text-shadow: 0 0 4px rgba(0, 255, 65, 0.15);
+}
+
+/* Heading glow */
+.gsd-app[data-theme="phosphor"] .gsd-assistant-text h1, .gsd-app[data-theme="phosphor"] .gsd-assistant-text h2, .gsd-app[data-theme="phosphor"] .gsd-assistant-text h3 {
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.1);
+}
+
+/* Link: dashed underline */
+.gsd-app[data-theme="phosphor"] .gsd-assistant-text a { text-decoration: none; border-bottom: 1px dashed var(--phosphor-dim); }
+
+/* Streaming cursor glow */
+.gsd-app[data-theme="phosphor"] .gsd-entry-assistant.streaming .gsd-assistant-text > *:last-child::after { text-shadow: var(--phosphor-glow); }
+
+/* Tool blocks: left-border shell style */
+.gsd-app[data-theme="phosphor"] .gsd-tool-block { border: none; border-left: 2px solid rgba(0, 255, 65, 0.2); margin-left: 8px; }
+.gsd-app[data-theme="phosphor"] .gsd-tool-block.running { border-left-color: var(--phosphor); box-shadow: none; background: none; animation: none; }
+.gsd-app[data-theme="phosphor"] .gsd-tool-block.running .gsd-tool-header { animation: gsd-phosphor-pulse 2s ease-in-out infinite; }
+
+@keyframes gsd-phosphor-pulse {
+  0%, 100% { background: rgba(0, 255, 65, 0.02); }
+  50% { background: rgba(0, 255, 65, 0.06); }
+}
+
+/* Tool name: shell prompt prefix + glow */
+.gsd-app[data-theme="phosphor"] .gsd-tool-name { text-shadow: 0 0 4px rgba(0, 255, 65, 0.15); }
+.gsd-app[data-theme="phosphor"] .gsd-tool-name::before { content: '$ '; opacity: 0.4; }
+
+/* Strip borders from tool/code/thinking elements, use dashed separators */
+.gsd-app[data-theme="phosphor"] .gsd-tool-header, .gsd-app[data-theme="phosphor"] .gsd-thinking-header, .gsd-app[data-theme="phosphor"] .gsd-thinking-block { border: none; }
+.gsd-app[data-theme="phosphor"] .gsd-tool-output, .gsd-app[data-theme="phosphor"] .gsd-code-header { border: none; border-top: 1px dashed rgba(0, 255, 65, 0.1); }
+
+/* Code blocks: left border, no box borders */
+.gsd-app[data-theme="phosphor"] .gsd-code-block { border: none; border-left: 2px solid rgba(0, 255, 65, 0.15); }
+.gsd-app[data-theme="phosphor"] pre, .gsd-app[data-theme="phosphor"] code { border: none !important; }
+
+/* Thinking block: thin left border */
+.gsd-app[data-theme="phosphor"] .gsd-thinking-block { border-left: 1px solid rgba(0, 255, 65, 0.08); }
+
+/* Glow on focus/hover for interactive elements */
+.gsd-app[data-theme="phosphor"] .gsd-input:focus, .gsd-app[data-theme="phosphor"] .gsd-send-btn:hover, .gsd-app[data-theme="phosphor"] .gsd-scroll-fab:hover { box-shadow: var(--phosphor-glow); }
+
+/* Text glow on hover */
+.gsd-app[data-theme="phosphor"] .gsd-action-btn:hover, .gsd-app[data-theme="phosphor"] .gsd-welcome-chip:hover, .gsd-app[data-theme="phosphor"] .gsd-workflow-badge { text-shadow: 0 0 4px rgba(0, 255, 65, 0.15); }
+
+/* Glow effects on misc elements */
+.gsd-app[data-theme="phosphor"] .gsd-welcome-ascii { text-shadow: var(--phosphor-glow); }
+.gsd-app[data-theme="phosphor"] .gsd-context-bar { box-shadow: 0 0 6px rgba(0, 255, 65, 0.3); }
+.gsd-app[data-theme="phosphor"] .gsd-settings-option.active .gsd-settings-option-dot { box-shadow: var(--phosphor-glow); }
+
+/* Scrollbar hover */
+.gsd-app[data-theme="phosphor"] .gsd-messages::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 65, 0.25); }
+
+/* Inline code tinted bg */
+.gsd-app[data-theme="phosphor"] .gsd-assistant-text code { background: rgba(0, 255, 65, 0.06) !important; }

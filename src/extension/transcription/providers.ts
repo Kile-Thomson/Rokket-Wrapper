@@ -86,7 +86,7 @@ async function transcribeAzure(apiKey: string, region: string, audioBuffer: Buff
   return (parsed.DisplayText ?? "").trim();
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 60_000): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 30_000): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {

@@ -108,7 +108,7 @@ describe("visualizer", () => {
     visualizer.show();
     visualizer.updateData({ ...makeDashboardData(), hasProject: false, hasMilestone: false });
     const overlay = document.getElementById("workflowVisualizer");
-    expect(overlay!.innerHTML).toContain("No active GSD project");
+    expect(overlay!.innerHTML).toContain("No active project");
   });
 
   it("renders slice breakdown with tasks", () => {
@@ -189,7 +189,7 @@ describe("visualizer", () => {
     visualizer.show();
     visualizer.updateData(null);
     const overlay = document.getElementById("workflowVisualizer");
-    expect(overlay!.innerHTML).toContain("No active GSD project");
+    expect(overlay!.innerHTML).toContain("No active project");
   });
 
   it("renders risk badges for slices", () => {

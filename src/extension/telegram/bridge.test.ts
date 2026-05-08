@@ -259,7 +259,7 @@ describe("TelegramBridge", () => {
       await vi.advanceTimersByTimeAsync(11000);
       await injectPromise;
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining("GSD unavailable for s1"),
+        expect.stringContaining("unavailable for s1"),
       );
     });
   });

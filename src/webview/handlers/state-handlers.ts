@@ -57,11 +57,15 @@ export function handleState(msg: Msg<'state'>): void {
   const deps = getDeps();
   const data = msg.data;
   if (data) {
-    state.model = data.model || null;
+    if (data.model) {
+      state.model = data.model;
+    }
     if ("thinkingLevel" in data) {
       state.thinkingLevel = data.thinkingLevel ?? null;
     }
-    state.isStreaming = data.isStreaming || false;
+    if ("isStreaming" in data) {
+      state.isStreaming = data.isStreaming || false;
+    }
     state.isPending = false;
     state.isCompacting = data.isCompacting || false;
     if (data.cwd) state.cwd = data.cwd;

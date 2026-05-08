@@ -186,8 +186,8 @@ function render(): void {
       <div class="gsd-visualizer-body">
         <div class="gsd-visualizer-empty">
           <div class="gsd-visualizer-empty-icon">📊</div>
-          <div class="gsd-visualizer-empty-text">No active GSD project</div>
-          <div class="gsd-visualizer-empty-hint">Run <code>/gsd</code> to start a project</div>
+          <div class="gsd-visualizer-empty-text">No active project</div>
+          <div class="gsd-visualizer-empty-hint">Start a conversation to begin</div>
         </div>
       </div>
     `;

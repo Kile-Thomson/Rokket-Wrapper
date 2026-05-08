@@ -127,7 +127,7 @@ describe("renderDashboard", () => {
 
     const dashboard = deps.messagesContainer.querySelector(".gsd-dashboard");
     expect(dashboard).not.toBeNull();
-    expect(dashboard!.innerHTML).toContain("GSD Dashboard");
+    expect(dashboard!.innerHTML).toContain("Dashboard");
     expect(dashboard!.innerHTML).toContain("Executing");
     expect(dashboard!.querySelector(".gsd-dashboard-phase.executing")).not.toBeNull();
   });
@@ -301,11 +301,11 @@ describe("updateWelcomeScreen", () => {
     expect(deps.welcomeProcess.textContent).toBe("Type a message to start");
   });
 
-  it("shows 'Starting GSD…' when status is starting", () => {
+  it("shows 'Starting…' when status is starting", () => {
     (state as any).entries = [];
     (state as any).processStatus = "starting";
 
     updateWelcomeScreen();
-    expect(deps.welcomeProcess.textContent).toContain("Starting GSD");
+    expect(deps.welcomeProcess.textContent).toContain("Starting");
   });
 });

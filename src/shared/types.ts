@@ -333,6 +333,7 @@ export interface AvailableModelInfo {
   provider: string;
   reasoning?: boolean;
   contextWindow?: number;
+  alias?: boolean;
 }
 
 /** Result of a `run_bash` command execution returned to the webview. */

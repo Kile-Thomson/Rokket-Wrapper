@@ -78,13 +78,13 @@ root.innerHTML = `
     <header class="gsd-header" role="banner">
       <div class="gsd-header-brand">
         <span class="gsd-logo" aria-hidden="true">🚀</span>
-        <span class="gsd-title">Rokket GSD</span>
+        <span class="gsd-title">RokketWrapper</span>
         <span class="gsd-header-version" id="headerVersion" title="View changelog" role="button" tabindex="0" aria-label="View changelog"></span>
       </div>
-      <span class="gsd-workflow-badge gsd-hidden" id="workflowBadge" title="GSD workflow state" role="status" aria-label="Workflow state"></span>
+      <span class="gsd-workflow-badge gsd-hidden" id="workflowBadge" title="Workflow state" role="status" aria-label="Workflow state"></span>
       <div class="gsd-header-info" role="status" aria-label="Session info">
         <span class="gsd-model-badge gsd-hidden" id="modelBadge" title="Model" aria-label="Current model"></span>
-        <span class="gsd-thinking-badge gsd-hidden" id="thinkingBadge" title="Thinking level" aria-label="Thinking level"></span>
+        <span class="gsd-thinking-badge gsd-hidden" id="thinkingBadge" title="Effort level" aria-label="Effort level"></span>
         <span class="gsd-header-sep gsd-hidden" id="headerSep1" aria-hidden="true"></span>
         <span class="gsd-cost-badge gsd-hidden" id="costBadge" title="Session cost" aria-label="Session cost"></span>
         <span class="gsd-context-badge gsd-hidden" id="contextBadge" title="Context usage" aria-label="Context usage"></span>
@@ -151,6 +151,20 @@ root.innerHTML = `
             </div>
             <div class="gsd-settings-divider"></div>
             <div class="gsd-settings-section">
+              <span class="gsd-settings-label">Behavior</span>
+              <div class="gsd-settings-toggles">
+                <label class="gsd-settings-toggle" id="toggleAutoCompact">
+                  <input type="checkbox" />
+                  <span>Auto-compact</span>
+                </label>
+                <label class="gsd-settings-toggle" id="toggleAutoRetry">
+                  <input type="checkbox" checked />
+                  <span>Auto-retry on error</span>
+                </label>
+              </div>
+            </div>
+            <div class="gsd-settings-divider"></div>
+            <div class="gsd-settings-section">
               <span class="gsd-settings-label">Voice Transcription</span>
               <div class="gsd-settings-voice-providers" id="voiceProviders">
                 <button class="gsd-settings-option active" data-provider="openai" role="menuitemradio" aria-checked="true">
@@ -191,16 +205,18 @@ root.innerHTML = `
 
     <main class="gsd-messages" id="messagesContainer" role="log" aria-label="Chat messages" aria-live="polite" aria-relevant="additions">
       <div class="gsd-welcome" id="welcomeScreen">
-        <div class="gsd-welcome-logo">
-          <pre class="gsd-welcome-ascii">
- ██████╗ ███████╗██████╗
-██╔════╝ ██╔════╝██╔══██╗
-██║  ███╗███████╗██║  ██║
-██║   ██║╚════██║██║  ██║
-╚██████╔╝███████║██████╔╝
- ╚═════╝ ╚══════╝╚═════╝</pre>
-        </div>
-        <div class="gsd-welcome-title">Get Shit Done</div>
+        <pre class="gsd-welcome-ascii" aria-label="RokketWrapper">
+██████   ██████  ██   ██ ██   ██ ███████ ████████
+██   ██ ██    ██ ██  ██  ██  ██  ██         ██
+██████  ██    ██ █████   █████   █████      ██
+██   ██ ██    ██ ██  ██  ██  ██  ██         ██
+██   ██  ██████  ██   ██ ██   ██ ███████    ██
+██     ██ ██████   █████  ██████  ██████  ███████ ██████
+██     ██ ██   ██ ██   ██ ██   ██ ██   ██ ██      ██   ██
+██  █  ██ ██████  ███████ ██████  ██████  █████   ██████
+██ ███ ██ ██   ██ ██   ██ ██     ██      ██      ██   ██
+ ███ ███  ██   ██ ██   ██ ██     ██      ███████ ██   ██</pre>
+        <div class="gsd-welcome-title">Rokket Wrapper</div>
         <div class="gsd-welcome-sub" id="welcomeProcess">Initializing...</div>
         <div class="gsd-welcome-model" id="welcomeModel"></div>
         <div class="gsd-welcome-hints gsd-hidden" id="welcomeHints"></div>
@@ -906,6 +922,9 @@ slashMenu.init({
     vscode.postMessage({ type: "set_auto_compaction", enabled: newValue });
     state.sessionStats.autoCompactionEnabled = newValue;
     messageHandler.addSystemEntry(`Auto-compaction ${newValue ? "enabled" : "disabled"}.`, "info");
+  },
+  onShowSettings: () => {
+    (globalThis as any).__gsdOpenSettings?.();
   },
   onToggleAutoRetry: () => {
     const current = state.sessionStats.autoRetryEnabled ?? true;

@@ -4,7 +4,21 @@
 
 RokketWrapper is a VS Code extension that provides a polished IDE GUI for Claude Code CLI and OpenAI Codex CLI. It is a fork of RokketGSD with all GSD/pi-specific infrastructure removed, retaining the webview UI, Telegram bridge, and voice input as provider-agnostic features.
 
-Target users: developers who love the RokketGSD frontend but don't use GSD/pi as their agent engine.
+**Target users:** Developers who love the RokketGSD frontend (webview chat, Telegram bridge, voice input) but don't use GSD/pi as their agent runner.
+
+---
+
+## Current Status
+
+The initial codebase has been set up:
+
+- Forked from `RokketGSD/gsd-vscode` at `telegram-ux-improvements` (includes push-to-talk voice, Telegram UX improvements, phantom tool tracking)
+- All GSD/pi-specific code stripped — RPC client, auto-mode, worktree management, metrics, session watchdogs, captures, dashboard
+- **Kept intact:** Webview UI, Telegram bridge, voice transcription, update checker, HTML generator
+- **New:** `IAgentProvider` interface + `ClaudeCodeProvider` skeleton added at `src/extension/provider/`
+- **Known gap:** Telegram bridge still expects the old GSD client shape — needs wiring to `provider.prompt()` (M001 S02)
+
+Next step: finish wiring `ClaudeCodeProvider` end-to-end and validate VS Code chat → Claude Code CLI → response in webview.
 
 ---
 

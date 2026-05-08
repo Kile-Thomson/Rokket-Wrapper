@@ -239,7 +239,7 @@ describe("ui-updates", () => {
     it("shows crashed indicator with restart button", () => {
       state.processStatus = "crashed";
       updateOverlayIndicators();
-      expect(deps.overlayIndicators.innerHTML).toContain("GSD process exited");
+      expect(deps.overlayIndicators.innerHTML).toContain("Process exited");
       expect(deps.overlayIndicators.querySelector("#restartBtn")).toBeTruthy();
     });
 

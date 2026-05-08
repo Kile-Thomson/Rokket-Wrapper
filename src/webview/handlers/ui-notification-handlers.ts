@@ -208,9 +208,9 @@ export function handleProcessExit(msg: Msg<'process_exit'>): void {
   if (detail) {
     message = detail;
   } else if (msg.code === 0) {
-    message = "GSD process exited.";
+    message = "Process exited.";
   } else {
-    message = `GSD process exited (code: ${msg.code}).`;
+    message = `Process exited (code: ${msg.code}).`;
   }
   addSystemEntry(message, msg.code === 0 ? "info" : "error");
 }
@@ -222,7 +222,7 @@ export function handleProcessHealth(msg: Msg<'process_health'>): void {
     deps.updateOverlayIndicators();
   } else if (msg.status === "recovered") {
     deps.updateOverlayIndicators();
-    addSystemEntry("GSD process recovered", "info");
+    addSystemEntry("Process recovered", "info");
   }
 }
 
@@ -298,7 +298,7 @@ function showUpdateCard(
   card.innerHTML = `
     <div class="gsd-update-card-header">
       <span class="gsd-update-icon">🚀</span>
-      <span class="gsd-update-title">Rokket GSD v${escapeHtml(version)} Available</span>
+      <span class="gsd-update-title">RokketWrapper v${escapeHtml(version)} Available</span>
       <span class="gsd-update-current">You have v${escapeHtml(currentVersion)}</span>
     </div>
     <div class="gsd-update-notes">

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { RokketWrapperWebviewProvider } from "./webview-provider";
-import { startUpdateChecker } from "./update-checker";
+
 import { runTelegramSetup, updateTelegramStatusBar } from "./telegram/setup";
 import { getOpenAiApiKey, setOpenAiApiKey } from "./openai/config";
 
@@ -17,7 +17,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const output = outputChannel;
   output.appendLine("RokketWrapper extension activating...");
 
-  provider = new RokketWrapperWebviewProvider(context.extensionUri, context);
+  provider = new RokketWrapperWebviewProvider(context.extensionUri, context, outputChannel);
 
   // Status bar item
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 50);
@@ -130,8 +130,6 @@ export function activate(context: vscode.ExtensionContext): void {
   // Check Telegram config and update status bar
   updateTelegramStatusBar(statusBarItem, context);
 
-  // Check for updates from GitHub Releases
-  startUpdateChecker(context, provider);
 
   output.appendLine("RokketWrapper extension activated");
 }

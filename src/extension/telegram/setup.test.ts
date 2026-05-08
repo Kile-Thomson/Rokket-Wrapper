@@ -320,7 +320,7 @@ describe("runTelegramSetup", () => {
 describe("updateTelegramStatusBar", () => {
   it("appends Telegram status to tooltip when config exists", async () => {
     savedConfig = { botToken: TOKEN, botUsername: "testbot", chatId: CHAT.id, chatTitle: CHAT.title, streamingGranularity: "throttled" };
-    const statusBar = { tooltip: "Rokket GSD" } as vscode.StatusBarItem;
+    const statusBar = { tooltip: "RokketWrapper" } as vscode.StatusBarItem;
 
     await updateTelegramStatusBar(statusBar, mockContext());
 
@@ -329,10 +329,10 @@ describe("updateTelegramStatusBar", () => {
 
   it("does not change tooltip when no config exists", async () => {
     savedConfig = null;
-    const statusBar = { tooltip: "Rokket GSD" } as vscode.StatusBarItem;
+    const statusBar = { tooltip: "RokketWrapper" } as vscode.StatusBarItem;
 
     await updateTelegramStatusBar(statusBar, mockContext());
 
-    expect(statusBar.tooltip).toBe("Rokket GSD");
+    expect(statusBar.tooltip).toBe("RokketWrapper");
   });
 });

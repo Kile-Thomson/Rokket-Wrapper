@@ -1,5 +1,5 @@
 // ============================================================
-// Thinking Picker — dropdown for selecting thinking/reasoning level
+// Effort Picker — dropdown for selecting effort/reasoning level
 // ============================================================
 
 import { state } from "./state";
@@ -18,12 +18,12 @@ interface ThinkingOption {
 }
 
 const THINKING_OPTIONS: ThinkingOption[] = [
-  { level: "off",     label: "Off",     description: "No extended thinking" },
+  { level: "off",     label: "Off",     description: "No extended effort" },
   { level: "minimal", label: "Minimal", description: "Brief internal reasoning" },
-  { level: "low",     label: "Low",     description: "Light reasoning steps" },
-  { level: "medium",  label: "Medium",  description: "Moderate depth" },
-  { level: "high",    label: "High",    description: "Deep reasoning" },
-  { level: "xhigh",   label: "Max",     description: "Maximum depth (Opus)" },
+  { level: "low",     label: "Low",     description: "Light effort" },
+  { level: "medium",  label: "Medium",  description: "Moderate effort" },
+  { level: "high",    label: "High",    description: "Deep effort" },
+  { level: "xhigh",   label: "Max",     description: "Maximum effort" },
 ];
 
 // ============================================================
@@ -142,7 +142,7 @@ function render(): void {
 
   const parts: string[] = [];
   parts.push(`<div class="gsd-thinking-picker-header">
-    <span class="gsd-thinking-picker-title" id="thinkingPickerTitle">Thinking Level</span>
+    <span class="gsd-thinking-picker-title" id="thinkingPickerTitle">Effort</span>
     <button class="gsd-thinking-picker-close" id="thinkingPickerClose" aria-label="Close thinking picker">✕</button>
   </div>`);
 

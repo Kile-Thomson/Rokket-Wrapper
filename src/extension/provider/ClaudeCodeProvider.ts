@@ -3,7 +3,9 @@ import { IAgentProvider } from "./IAgentProvider";
 import { resolveShellEnv, mergeShellEnv } from "../shell-env";
 
 // ============================================================
-// ClaudeCodeProvider — wraps `claude --print --output-format stream-json`
+// ClaudeCodeProvider — persistent interactive Claude process
+// Uses `-p --input-format stream-json --output-format stream-json`
+// One long-running process per conversation; messages piped via stdin.
 // ============================================================
 
 interface ClaudeSystemEvent {
@@ -33,11 +35,19 @@ interface ClaudeToolResultContent {
   content: string;
 }
 
+interface ClaudeUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+}
+
 interface ClaudeAssistantEvent {
   type: "assistant";
   session_id: string;
   message: {
     content: Array<ClaudeTextContent | ClaudeToolUseContent>;
+    usage?: ClaudeUsage;
   };
 }
 
@@ -50,6 +60,15 @@ interface ClaudeUserEvent {
   };
 }
 
+interface ClaudeModelUsageEntry {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
+  contextWindow?: number;
+  costUSD?: number;
+}
+
 interface ClaudeResultEvent {
   type: "result";
   subtype: "success" | "error";
@@ -58,6 +77,8 @@ interface ClaudeResultEvent {
   result: string;
   session_id: string;
   total_cost_usd?: number;
+  usage?: ClaudeUsage;
+  modelUsage?: Record<string, ClaudeModelUsageEntry>;
 }
 
 type ClaudeEvent = ClaudeSystemEvent | ClaudeAssistantEvent | ClaudeUserEvent | ClaudeResultEvent;
@@ -66,21 +87,28 @@ export class ClaudeCodeProvider extends IAgentProvider {
   private process: ChildProcess | null = null;
   private workingDir: string = process.cwd();
   private lineBuffer = "";
+  private _model: string | null = null;
+  private _effort: string | null = null;
+  private initReceived = false;
 
   constructor(private readonly claudePath: string = "claude") {
     super();
   }
 
+  get model(): string | null { return this._model; }
+  set model(value: string | null) { this._model = value; }
+
+  get effort(): string | null { return this._effort; }
+  set effort(value: string | null) { this._effort = value; }
+
   async start(workingDir: string): Promise<void> {
     this.workingDir = workingDir;
-    // start() just records the working dir; processes are spawned per-prompt
-    this.emit("log", `ClaudeCodeProvider ready, workingDir=${workingDir}`);
+    this.emit("log", `ClaudeCodeProvider started in ${workingDir}`);
+    // Process is spawned lazily on first prompt
   }
 
-  async prompt(text: string): Promise<void> {
-    if (this.process) {
-      await this.abort();
-    }
+  private async ensureProcess(): Promise<ChildProcess> {
+    if (this.process) return this.process;
 
     const shellEnv = await resolveShellEnv();
     const env = mergeShellEnv(
@@ -89,25 +117,29 @@ export class ClaudeCodeProvider extends IAgentProvider {
     );
 
     const args = [
-      "--print",
+      "-p",
+      "--input-format", "stream-json",
       "--output-format", "stream-json",
       "--verbose",
       "--dangerously-skip-permissions",
     ];
+    if (this._model) {
+      args.push("--model", this._model);
+    }
+    if (this._effort) {
+      args.push("--effort", this._effort);
+    }
+
+    this.emit("log", `[claude] spawning persistent process: ${this.claudePath} ${args.join(" ")}`);
 
     this.lineBuffer = "";
+    this.initReceived = false;
     this.process = spawn(this.claudePath, args, {
       cwd: this.workingDir,
       env,
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
     });
-
-    this.emit("agent_start");
-
-    // Write prompt to stdin then close it so claude knows input is done
-    this.process.stdin!.write(text, "utf8");
-    this.process.stdin!.end();
 
     this.process.stdout!.setEncoding("utf8");
     this.process.stdout!.on("data", (chunk: string) => {
@@ -131,7 +163,6 @@ export class ClaudeCodeProvider extends IAgentProvider {
     });
 
     this.process.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
-      // Flush any remaining buffered line
       if (this.lineBuffer.trim()) {
         this.parseLine(this.lineBuffer.trim());
         this.lineBuffer = "";
@@ -141,9 +172,46 @@ export class ClaudeCodeProvider extends IAgentProvider {
         this.emit("error", new Error(`claude exited with code ${code}, signal ${signal}`));
       }
     });
+
+    return this.process;
+  }
+
+  async prompt(text: string, images?: Array<{ data: string; mimeType: string }>): Promise<void> {
+    const child = await this.ensureProcess();
+
+    this.emit("agent_start");
+
+    const content: Array<Record<string, unknown>> = [];
+    if (text) {
+      content.push({ type: "text", text });
+    }
+    if (images && images.length > 0) {
+      this.emit("log", `[claude] Sending prompt with ${images.length} image(s), text length=${text.length}`);
+      for (const img of images) {
+        content.push({
+          type: "image",
+          source: { type: "base64", media_type: img.mimeType, data: img.data },
+        });
+      }
+    }
+
+    const msg = JSON.stringify({
+      type: "user",
+      message: { role: "user", content },
+    });
+
+    this.emit("log", `[claude] sending message (${msg.length} bytes)`);
+    const stdin = child.stdin!;
+    const flushed = stdin.write(msg + "\n", "utf8");
+    if (!flushed) {
+      await new Promise<void>(resolve => stdin.once("drain", resolve));
+    }
+    // stdin stays open — process is persistent
   }
 
   async abort(): Promise<void> {
+    // Kill the process to stop the current response.
+    // A new process will be spawned on the next prompt (conversation history is lost).
     if (this.process) {
       this.process.kill("SIGTERM");
       this.process = null;
@@ -158,12 +226,19 @@ export class ClaudeCodeProvider extends IAgentProvider {
     return this.process !== null;
   }
 
+  override resetSession(): void {
+    // Kill the persistent process so a fresh one spawns on next prompt
+    if (this.process) {
+      this.process.kill("SIGTERM");
+      this.process = null;
+    }
+  }
+
   private parseLine(line: string): void {
     let event: ClaudeEvent;
     try {
       event = JSON.parse(line) as ClaudeEvent;
     } catch {
-      // Non-JSON line — treat as log
       this.emit("log", line);
       return;
     }
@@ -171,6 +246,10 @@ export class ClaudeCodeProvider extends IAgentProvider {
     switch (event.type) {
       case "system":
         this.emit("log", `[claude] session=${event.session_id} model=${event.model}`);
+        if (!this.initReceived) {
+          this.initReceived = true;
+          this.emit("system_init", { sessionId: event.session_id, model: event.model });
+        }
         break;
 
       case "assistant": {
@@ -184,7 +263,14 @@ export class ClaudeCodeProvider extends IAgentProvider {
           }
         }
         if (hasText) {
-          this.emit("message_end");
+          const u = event.message.usage;
+          const usage = u ? {
+            input: u.input_tokens,
+            output: u.output_tokens,
+            cacheRead: u.cache_read_input_tokens,
+            cacheWrite: u.cache_creation_input_tokens,
+          } : undefined;
+          this.emit("message_end", usage);
         }
         break;
       }
@@ -202,15 +288,31 @@ export class ClaudeCodeProvider extends IAgentProvider {
         break;
       }
 
-      case "result":
+      case "result": {
+        let contextWindow: number | undefined;
+        let totalUsage: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } | undefined;
+        if (event.modelUsage) {
+          const first = Object.values(event.modelUsage)[0];
+          if (first) {
+            contextWindow = first.contextWindow;
+            totalUsage = {
+              input: first.inputTokens,
+              output: first.outputTokens,
+              cacheRead: first.cacheReadInputTokens,
+              cacheWrite: first.cacheCreationInputTokens,
+            };
+          }
+        }
         this.emit("agent_end", {
           durationMs: event.duration_ms,
           costUsd: event.total_cost_usd,
+          usage: totalUsage,
+          contextWindow,
         });
         break;
+      }
 
       default:
-        // Unknown event type — log for debugging
         this.emit("log", `[claude] unknown event type: ${(event as { type: string }).type}`);
     }
   }

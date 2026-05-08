@@ -362,6 +362,17 @@
   background: var(--gsd-color-error-hover);
 }
 
+.gsd-send-btn.gsd-pending-btn {
+  animation: gsd-pending-pulse 1.2s ease-in-out infinite;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+@keyframes gsd-pending-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
 .gsd-send-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;

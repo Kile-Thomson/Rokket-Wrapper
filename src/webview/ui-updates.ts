@@ -100,13 +100,13 @@ export function updateHeaderUI(): void {
   if (state.model && !modelSupportsReasoning && state.modelsLoaded) {
     // Non-reasoning model — show disabled badge
     thinkingBadge.textContent = "🧠 N/A";
-    thinkingBadge.title = "Current model does not support extended thinking";
+    thinkingBadge.title = "Current model does not support effort levels";
     thinkingBadge.classList.remove('gsd-hidden');
     thinkingBadge.classList.add("disabled");
   } else {
     const thinkingLabel = state.thinkingLevel && state.thinkingLevel !== "off" ? state.thinkingLevel : "off";
     thinkingBadge.textContent = `🧠 ${thinkingLabel}`;
-    thinkingBadge.title = "Click to select thinking level";
+    thinkingBadge.title = "Click to select effort level";
     thinkingBadge.classList.remove('gsd-hidden');
     thinkingBadge.classList.remove("disabled");
   }
@@ -197,26 +197,38 @@ export function updateInputUI(): void {
     promptInput.placeholder = "Compacting context — please wait…";
     promptInput.disabled = true;
     inputHint.textContent = "Context window is being compacted";
-  } else if (state.isStreaming) {
+  } else if (state.isStreaming || state.isPending) {
     (sendBtn as HTMLButtonElement).disabled = false;
     promptInput.disabled = false;
-    sendIcon.textContent = "■";
     sendBtn.classList.add("gsd-stop-btn");
-    sendBtn.title = "Stop (Esc)";
-    promptInput.placeholder = "Interrupt or steer GSD...";
+    if (state.isStreaming) {
+      sendIcon.textContent = "■";
+      sendBtn.title = "Stop (Esc)";
+      sendBtn.classList.remove("gsd-pending-btn");
+    } else {
+      sendIcon.textContent = "•••";
+      sendBtn.title = "Waiting for response…";
+      sendBtn.classList.add("gsd-pending-btn");
+    }
+    promptInput.placeholder = state.isStreaming
+      ? "Interrupt or steer GSD..."
+      : "Waiting for response…";
   } else {
     (sendBtn as HTMLButtonElement).disabled = false;
     promptInput.disabled = false;
     sendIcon.textContent = "↑";
     sendBtn.classList.remove("gsd-stop-btn");
+    sendBtn.classList.remove("gsd-pending-btn");
     sendBtn.title = "Send";
     promptInput.placeholder = "Message GSD...";
   }
 
   const sendKey = state.useCtrlEnterToSend ? "Ctrl+Enter" : "Enter";
   if (!state.isCompacting) {
-    if (state.isStreaming) {
-      inputHint.textContent = `${sendKey} to steer • Esc to stop`;
+    if (state.isStreaming || state.isPending) {
+      inputHint.textContent = state.isStreaming
+        ? `${sendKey} to steer • Esc to stop`
+        : "Processing…";
     } else {
       inputHint.textContent = `${sendKey} to send • !cmd for bash • / for commands`;
     }
@@ -242,7 +254,7 @@ export function updateOverlayIndicators(): void {
 
   if (state.processStatus === "starting") {
     parts.push(`<div class="gsd-overlay-indicator starting">
-      <span class="gsd-overlay-spinner"></span>Starting GSD…
+      <span class="gsd-overlay-spinner"></span>Starting…
     </div>`);
   }
 
@@ -260,7 +272,7 @@ export function updateOverlayIndicators(): void {
       ? `<div class="gsd-overlay-detail">${escapeHtml(state.lastExitDetail.slice(0, 500))}</div>`
       : "";
     parts.push(`<div class="gsd-overlay-indicator crashed">
-      ⚠ GSD process exited${codeLabel}
+      ⚠ Process exited${codeLabel}
       ${detailLine}
       <button id="restartBtn" class="gsd-overlay-btn">Restart</button>
     </div>`);

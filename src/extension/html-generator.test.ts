@@ -52,7 +52,7 @@ describe("html-generator", () => {
       expect(html).toContain("https://csp-source");
       expect(html).toContain('<div id="root"></div>');
       expect(html).toContain("test-session-123");
-      expect(html).toContain("Rokket GSD");
+      expect(html).toContain("RokketWrapper");
       // Should contain nonce attributes on script tags
       expect(html).toMatch(/nonce="[A-Za-z0-9_-]+"/);
       // Should reference the dist script and style

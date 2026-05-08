@@ -102,7 +102,7 @@ describe("thinking-picker", () => {
   it("renders all standard thinking levels (excluding xhigh for non-Opus 4.6)", () => {
     show();
 
-    expect(deps.pickerEl.innerHTML).toContain("Thinking Level");
+    expect(deps.pickerEl.innerHTML).toContain("Effort");
     expect(deps.pickerEl.innerHTML).toContain("Off");
     expect(deps.pickerEl.innerHTML).toContain("Minimal");
     expect(deps.pickerEl.innerHTML).toContain("Low");

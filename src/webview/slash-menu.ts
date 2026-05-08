@@ -45,6 +45,7 @@ let onShowHistory: (() => void) | undefined;
 let onCopyLast: (() => void) | undefined;
 let onToggleAutoCompact: (() => void) | undefined;
 let onToggleAutoRetry: (() => void) | undefined;
+let onShowSettings: (() => void) | undefined;
 
 // ============================================================
 // Public API
@@ -121,88 +122,7 @@ export function selectCurrent(): void {
 export function buildItems(): SlashMenuItem[] {
   const items: SlashMenuItem[] = [];
 
-  const gsdSubcommands: Array<{ name: string; desc: string; sendOnSelect?: boolean }> = [
-    // ── Core workflow ─────────────────────────────────────────────────
-    { name: "gsd", desc: "Contextual wizard — pick the next action", sendOnSelect: true },
-    { name: "gsd next", desc: "Execute the next task", sendOnSelect: true },
-    { name: "gsd auto", desc: "Auto-execute tasks (fresh context per task)", sendOnSelect: true },
-    { name: "gsd stop", desc: "Stop auto-mode", sendOnSelect: true },
-    { name: "gsd pause", desc: "Pause auto-mode (preserves state, /gsd auto to resume)", sendOnSelect: true },
-    { name: "gsd quick", desc: "Execute ad-hoc task with GSD guarantees" },
-    { name: "gsd discuss", desc: "Discuss without executing", sendOnSelect: true },
-
-    // ── Visibility ────────────────────────────────────────────────────
-    { name: "gsd status", desc: "Project dashboard — milestones, slices, tasks", sendOnSelect: true },
-    { name: "gsd visualize", desc: "Open workflow visualizer overlay", sendOnSelect: true },
-    { name: "gsd help", desc: "Categorized command reference", sendOnSelect: true },
-    { name: "gsd changelog", desc: "Show categorized release notes", sendOnSelect: true },
-
-    // ── Steering & capture ────────────────────────────────────────────
-    { name: "gsd capture", desc: "Capture a thought during auto-mode" },
-    { name: "gsd steer", desc: "Redirect auto-mode priorities" },
-    { name: "gsd triage", desc: "Manually trigger triage of pending captures", sendOnSelect: true },
-    { name: "gsd knowledge", desc: "View or add to project knowledge base", sendOnSelect: true },
-
-    // ── Queue & milestones ────────────────────────────────────────────
-    { name: "gsd queue", desc: "Queue and reorder future milestones", sendOnSelect: true },
-    { name: "gsd new-milestone", desc: "Create a milestone from a specification document", sendOnSelect: true },
-    { name: "gsd park", desc: "Park a milestone — skip without deleting" },
-    { name: "gsd unpark", desc: "Reactivate a parked milestone" },
-
-    // ── Dispatch & history ────────────────────────────────────────────
-    { name: "gsd dispatch", desc: "Dispatch a specific phase directly" },
-    { name: "gsd history", desc: "View execution history", sendOnSelect: true },
-    { name: "gsd undo", desc: "Revert last completed unit" },
-    { name: "gsd skip", desc: "Prevent a unit from auto-mode dispatch" },
-
-    // ── Workflow templates ────────────────────────────────────────────
-    { name: "gsd start", desc: "Start a workflow template (bugfix, spike, feature, etc.)" },
-    { name: "gsd templates", desc: "List available workflow templates", sendOnSelect: true },
-
-    // ── Export & cleanup ──────────────────────────────────────────────
-    { name: "gsd export", desc: "Export milestone report as HTML (via gsd-pi)" },
-    { name: "gsd cleanup", desc: "Remove merged branches or snapshots" },
-
-    // ── Configuration ─────────────────────────────────────────────────
-    { name: "gsd config", desc: "View or modify GSD configuration", sendOnSelect: true },
-    { name: "gsd prefs", desc: "View or set preferences" },
-    { name: "gsd mode", desc: "Switch workflow mode (solo/team)" },
-    { name: "gsd keys", desc: "Manage API keys", sendOnSelect: true },
-    { name: "gsd hooks", desc: "Show configured post-unit and pre-dispatch hooks", sendOnSelect: true },
-    { name: "gsd run-hook", desc: "Manually trigger a specific hook" },
-    { name: "gsd extensions", desc: "Manage extensions (list, enable, disable, info)", sendOnSelect: true },
-
-    // ── Diagnostics ───────────────────────────────────────────────────
-    { name: "gsd doctor", desc: "Diagnose and fix issues", sendOnSelect: true },
-    { name: "gsd forensics", desc: "Post-mortem analysis of auto-mode failures", sendOnSelect: true },
-    { name: "gsd logs", desc: "Browse activity, debug, and metrics logs", sendOnSelect: true },
-    { name: "gsd inspect", desc: "Show SQLite DB diagnostics", sendOnSelect: true },
-    { name: "gsd skill-health", desc: "Skill lifecycle dashboard", sendOnSelect: true },
-    { name: "gsd rate", desc: "Token usage rates and profile defaults", sendOnSelect: true },
-
-    // ── Setup & maintenance ───────────────────────────────────────────
-    { name: "gsd init", desc: "Project init wizard — detect, configure, bootstrap .gsd/" },
-    { name: "gsd setup", desc: "Global setup status and configuration", sendOnSelect: true },
-    { name: "gsd migrate", desc: "Migrate a v1 .planning directory to .gsd format" },
-    { name: "gsd update", desc: "Update GSD to the latest version", sendOnSelect: true },
-
-    // ── Advanced ──────────────────────────────────────────────────────
-    { name: "gsd remote", desc: "Remote question channels (Slack, Discord, Telegram)" },
-    { name: "gsd parallel", desc: "Parallel auto-mode orchestration" },
-  ];
-
-  for (const sub of gsdSubcommands) {
-    items.push({
-      name: sub.name,
-      description: sub.desc,
-      insertText: `/${sub.name} `,
-      source: "gsd",
-      sendOnSelect: sub.sendOnSelect,
-    });
-  }
-
   for (const cmd of state.commands) {
-    if (cmd.name === "gsd") continue;
     items.push({
       name: cmd.name,
       description: cmd.description || "",
@@ -212,19 +132,13 @@ export function buildItems(): SlashMenuItem[] {
   }
 
   items.push(
-    { name: "compact", description: "Compact context to reduce token usage", insertText: "", source: "webview" },
-    { name: "export", description: "Export current conversation as HTML file", insertText: "", source: "webview" },
-    { name: "model", description: "Change AI model", insertText: "", source: "webview" },
-    { name: "thinking", description: "Cycle thinking level", insertText: "", source: "webview" },
     { name: "new", description: "Start a new conversation", insertText: "", source: "webview" },
-    { name: "history", description: "Browse and switch sessions", insertText: "", source: "webview" },
     { name: "copy", description: "Copy last assistant message to clipboard", insertText: "", source: "webview" },
-    { name: "resume", description: "Resume last session", insertText: "", source: "webview" },
-    { name: "auto-compact", description: "Toggle auto-compaction on/off", insertText: "", source: "webview" },
-    { name: "auto-retry", description: "Toggle auto-retry on transient errors", insertText: "", source: "webview" },
+    { name: "export", description: "Export current conversation as HTML file", insertText: "", source: "webview" },
     { name: "telegram", description: "Start Telegram streaming — opens setup and connects", insertText: "", source: "webview" },
     { name: "telegram-stop", description: "Stop Telegram streaming — kills relay and disconnects", insertText: "", source: "webview" },
     { name: "telegram voice", description: "Set OpenAI API key for voice transcription", insertText: "", source: "webview" },
+    { name: "config", description: "Open settings panel", insertText: "", source: "webview" },
   );
 
   return items;
@@ -348,6 +262,11 @@ function selectCommand(idx: number): void {
       case "telegram voice":
         sendSlashCommand({ type: "set_openai_api_key" });
         break;
+      case "config":
+        promptInput.value = "";
+        onAutoResize();
+        onShowSettings?.();
+        break;
     }
     promptInput.focus();
     return;
@@ -387,6 +306,7 @@ export interface SlashMenuDeps {
   onCopyLast?: () => void;
   onToggleAutoCompact?: () => void;
   onToggleAutoRetry?: () => void;
+  onShowSettings?: () => void;
 }
 
 export function init(deps: SlashMenuDeps): void {
@@ -401,4 +321,5 @@ export function init(deps: SlashMenuDeps): void {
   onCopyLast = deps.onCopyLast;
   onToggleAutoCompact = deps.onToggleAutoCompact;
   onToggleAutoRetry = deps.onToggleAutoRetry;
+  onShowSettings = deps.onShowSettings;
 }

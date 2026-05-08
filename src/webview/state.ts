@@ -172,7 +172,7 @@ export function pruneOldEntries(container: HTMLElement): number {
   }
   indicator.textContent = `${totalPrunedCount} earlier messages removed to improve performance`;
 
-  console.warn(`GSD: Pruned ${excess} oldest entries to maintain ${MAX_ENTRIES}-entry cap`);
+  console.warn(`RokketWrapper: Pruned ${excess} oldest entries to maintain ${MAX_ENTRIES}-entry cap`);
   return excess;
 }
 

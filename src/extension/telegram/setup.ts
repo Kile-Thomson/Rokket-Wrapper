@@ -18,7 +18,7 @@ async function showStepModal(
 }
 
 export async function runTelegramSetup(context: vscode.ExtensionContext): Promise<void> {
-  const output = vscode.window.createOutputChannel("GSD", { log: true });
+  const output = vscode.window.createOutputChannel("RokketWrapper", { log: true });
   output.appendLine("[telegram-setup] Starting Telegram setup wizard");
 
   const totalSteps = 3;
@@ -251,6 +251,6 @@ export async function updateTelegramStatusBar(
   const config = vscode.workspace.getConfiguration("gsd");
   const telegramConfig = await loadTelegramConfig(context.secrets, config);
   if (telegramConfig) {
-    statusBarItem.tooltip = `${statusBarItem.tooltip ?? "Rokket GSD"}\n$(comment-discussion) Telegram: Connected`;
+    statusBarItem.tooltip = `${statusBarItem.tooltip ?? "RokketWrapper"}\n$(comment-discussion) Telegram: Connected`;
   }
 }

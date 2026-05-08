@@ -514,20 +514,15 @@
   user-select: none;
 }
 
-.gsd-welcome-logo {
-  margin-bottom: 6px;
-}
-
 .gsd-welcome-ascii {
-  font-family: var(--gsd-font-family-mono);
-  font-size: var(--gsd-font-size-sm);
-  line-height: var(--gsd-line-height-tight);
-  color: var(--gsd-color-text-link);
-  text-align: left;
-  margin: 0;
-  white-space: pre;
+  margin-bottom: 6px;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--gsd-fg-secondary);
   opacity: 0.7;
-  letter-spacing: 0.5px;
+  white-space: pre;
+  text-align: center;
 }
 
 .gsd-welcome-title {

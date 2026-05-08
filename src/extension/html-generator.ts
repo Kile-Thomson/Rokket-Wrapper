@@ -18,7 +18,6 @@ export function getWebviewHtml(extensionUri: vscode.Uri, webview: vscode.Webview
   const styleUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, "dist", "webview", "index.css")
   );
-
   const nonce = getNonce();
 
   return `<!DOCTYPE html>
@@ -28,7 +27,7 @@ export function getWebviewHtml(extensionUri: vscode.Uri, webview: vscode.Webview
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} data: blob:; font-src ${webview.cspSource}; media-src blob:;">
   <link href="${styleUri}" rel="stylesheet">
-  <title>Rokket GSD</title>
+  <title>RokketWrapper</title>
 </head>
 <body>
   <div id="root"></div>

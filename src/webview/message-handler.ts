@@ -69,7 +69,7 @@ let prevMessageEndUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 // Order matters — first match wins, so put more specific patterns first.
 const KNOWN_CONTEXT_WINDOWS: Array<[pattern: string, tokens: number]> = [
   // Anthropic Claude
-  ["opus-4", 200_000],
+  ["opus-4", 1_000_000],
   ["sonnet-4", 200_000],
   ["haiku-4", 200_000],
   ["claude-3.5", 200_000],
@@ -88,7 +88,7 @@ const KNOWN_CONTEXT_WINDOWS: Array<[pattern: string, tokens: number]> = [
   ["gemini-2", 1_000_000],
   ["gemini-1.5", 1_000_000],
   // Codex
-  ["codex", 200_000],
+  ["codex", 1_000_000],
   // DeepSeek
   ["deepseek", 128_000],
 ];
@@ -281,6 +281,7 @@ function handleMessage(event: MessageEvent): void {
         if (data.cwd) state.cwd = data.cwd;
         if (data.autoCompactionEnabled != null) {
           state.sessionStats.autoCompactionEnabled = data.autoCompactionEnabled;
+          syncSettingsToggles();
         }
         if (data.model?.contextWindow) {
           state.sessionStats.contextWindow = data.model.contextWindow;
@@ -340,6 +341,7 @@ function handleMessage(event: MessageEvent): void {
       if (data.status === "running" && prevStatus !== "running") {
         // Reset streaming state — if we're freshly running, we can't be streaming
         state.isStreaming = false;
+        state.isPending = false;
         state.isCompacting = false;
         state.lastExitDetail = null;
         state.commandsLoaded = false;
@@ -423,6 +425,7 @@ function handleMessage(event: MessageEvent): void {
 
     case "agent_end": {
       state.isStreaming = false;
+      state.isPending = false;
       announceToScreenReader("Response complete.");
       state.processHealth = "responsive";
       // Flush any pending staggered tool-end renders before finalizing the turn
@@ -1167,9 +1170,9 @@ function handleMessage(event: MessageEvent): void {
       if (detail) {
         message = detail;
       } else if (data.code === 0) {
-        message = "GSD process exited.";
+        message = "Process exited.";
       } else {
-        message = `GSD process exited (code: ${data.code}).`;
+        message = `Process exited (code: ${data.code}).`;
       }
       addSystemEntry(message, data.code === 0 ? "info" : "error");
       break;
@@ -1182,7 +1185,7 @@ function handleMessage(event: MessageEvent): void {
         updateOverlayIndicators();
       } else if (data.status === "recovered") {
         updateOverlayIndicators();
-        addSystemEntry("GSD process recovered", "info");
+        addSystemEntry("Process recovered", "info");
       }
       break;
     }
@@ -1477,7 +1480,7 @@ function handleMessage(event: MessageEvent): void {
       break;
 
     default:
-      console.warn("[gsd-webview] Unrecognized message type:", (msg as any).type);
+      console.warn("[webview] Unrecognized message type:", (msg as any).type);
       break;
   }
 
@@ -1640,7 +1643,7 @@ function showUpdateCard(
   card.innerHTML = `
     <div class="gsd-update-card-header">
       <span class="gsd-update-icon">🚀</span>
-      <span class="gsd-update-title">Rokket GSD v${escapeHtml(version)} Available</span>
+      <span class="gsd-update-title">RokketWrapper v${escapeHtml(version)} Available</span>
       <span class="gsd-update-current">You have v${escapeHtml(currentVersion)}</span>
     </div>
     <div class="gsd-update-notes">
@@ -1771,6 +1774,13 @@ function showChangelog(entries: Array<{ version: string; notes: string; date: st
   } else {
     card.focus();
   }
+}
+
+function syncSettingsToggles(): void {
+  const ac = document.querySelector("#toggleAutoCompact input") as HTMLInputElement | null;
+  const ar = document.querySelector("#toggleAutoRetry input") as HTMLInputElement | null;
+  if (ac) ac.checked = !!state.sessionStats.autoCompactionEnabled;
+  if (ar) ar.checked = state.sessionStats.autoRetryEnabled !== false;
 }
 
 export function addSystemEntry(text: string, kind: "info" | "error" | "warning" = "info"): void {

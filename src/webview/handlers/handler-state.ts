@@ -92,7 +92,7 @@ export function resetDerivedSessionTracking(): void {
 // ============================================================
 
 const KNOWN_CONTEXT_WINDOWS: Array<[pattern: string, tokens: number]> = [
-  ["opus-4", 200_000],
+  ["opus-4", 1_000_000],
   ["sonnet-4", 200_000],
   ["haiku-4", 200_000],
   ["claude-3.5", 200_000],
@@ -108,7 +108,7 @@ const KNOWN_CONTEXT_WINDOWS: Array<[pattern: string, tokens: number]> = [
   ["o4-mini", 200_000],
   ["gemini-2", 1_000_000],
   ["gemini-1.5", 1_000_000],
-  ["codex", 200_000],
+  ["codex", 1_000_000],
   ["deepseek", 128_000],
 ];
 

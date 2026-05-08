@@ -347,7 +347,7 @@ export class TelegramBridge {
     };
 
     const notifyUnavailable = (reason: string, threadId: number | undefined) => {
-      this.logger.info(`[telegram-bridge] GSD unavailable for ${sessionId}: ${reason}`);
+      this.logger.info(`[telegram-bridge] unavailable for ${sessionId}: ${reason}`);
       if (threadId == null) return;
       this.api.sendMessage(
         this.chatId,

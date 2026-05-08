@@ -175,7 +175,7 @@ describe("Telegram Integration (composed system)", () => {
   // 1. Sync-on flow
   // -----------------------------------------------------------------------
   it("syncOn creates topic and persists registry entry", async () => {
-    const threadId = await topicManager.syncOn(SESSION_ID, "GSD Session");
+    const threadId = await topicManager.syncOn(SESSION_ID, "RokketWrapper Session");
 
     expect(threadId).toBe(THREAD_ID);
     expect(mockFetchState.apiCalls.some((c) => c.method === "createForumTopic")).toBe(true);
@@ -191,7 +191,7 @@ describe("Telegram Integration (composed system)", () => {
   // 2. Inbound text routing
   // -----------------------------------------------------------------------
   it("inbound text message routes to BridgeClient.prompt", async () => {
-    await topicManager.syncOn(SESSION_ID, "GSD Session");
+    await topicManager.syncOn(SESSION_ID, "RokketWrapper Session");
 
     await bridge._testInjectUpdates([{
       update_id: 1,
@@ -211,7 +211,7 @@ describe("Telegram Integration (composed system)", () => {
   // 3. Inbound slash command routing
   // -----------------------------------------------------------------------
   it("inbound /gsd command routes to BridgeClient.prompt", async () => {
-    await topicManager.syncOn(SESSION_ID, "GSD Session");
+    await topicManager.syncOn(SESSION_ID, "RokketWrapper Session");
 
     await bridge._testInjectUpdates([{
       update_id: 2,
@@ -231,7 +231,7 @@ describe("Telegram Integration (composed system)", () => {
   // 4. Outbound assistant response
   // -----------------------------------------------------------------------
   it("handleAssistantMessage sends to correct thread", async () => {
-    await topicManager.syncOn(SESSION_ID, "GSD Session");
+    await topicManager.syncOn(SESSION_ID, "RokketWrapper Session");
     bridge.setStreamingGranularity("off");
     await bridge.handleAssistantMessage(SESSION_ID, "Here is my response.");
 
@@ -245,7 +245,7 @@ describe("Telegram Integration (composed system)", () => {
   // 5. Streaming flow: placeholder → throttled edit → final flush
   // -----------------------------------------------------------------------
   it("streaming: placeholder → throttled edit → final edit", async () => {
-    await topicManager.syncOn(SESSION_ID, "GSD Session");
+    await topicManager.syncOn(SESSION_ID, "RokketWrapper Session");
     bridge.setStreamingGranularity("throttled");
 
     // First chunk triggers placeholder sendMessage
@@ -279,7 +279,7 @@ describe("Telegram Integration (composed system)", () => {
   // 6. Photo injection
   // -----------------------------------------------------------------------
   it("inbound photo downloads and injects as image", async () => {
-    await topicManager.syncOn(SESSION_ID, "GSD Session");
+    await topicManager.syncOn(SESSION_ID, "RokketWrapper Session");
 
     await bridge._testInjectUpdates([{
       update_id: 3,
@@ -313,7 +313,7 @@ describe("Telegram Integration (composed system)", () => {
   // 7. Sync-off flow
   // -----------------------------------------------------------------------
   it("syncOff closes and deletes topic, removes registry entry", async () => {
-    await topicManager.syncOn(SESSION_ID, "GSD Session");
+    await topicManager.syncOn(SESSION_ID, "RokketWrapper Session");
 
     // Verify registry has entry
     let registry = globalState.get<TopicRegistryEntry[]>("gsd.telegram.topicRegistry");

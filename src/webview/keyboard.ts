@@ -523,12 +523,42 @@ function setupButtonHandlers(): void {
       selectSettingsOption(option);
     });
 
+    // Behavior toggles
+    const autoCompactToggle = document.querySelector("#toggleAutoCompact input") as HTMLInputElement | null;
+    const autoRetryToggle = document.querySelector("#toggleAutoRetry input") as HTMLInputElement | null;
+
+    if (autoCompactToggle) {
+      autoCompactToggle.checked = !!state.sessionStats.autoCompactionEnabled;
+      autoCompactToggle.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const enabled = autoCompactToggle.checked;
+        vscode.postMessage({ type: "set_auto_compaction", enabled });
+        state.sessionStats.autoCompactionEnabled = enabled;
+      });
+    }
+    if (autoRetryToggle) {
+      autoRetryToggle.checked = state.sessionStats.autoRetryEnabled !== false;
+      autoRetryToggle.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const enabled = autoRetryToggle.checked;
+        vscode.postMessage({ type: "set_auto_retry", enabled });
+        state.sessionStats.autoRetryEnabled = enabled;
+      });
+    }
+
     // Close dropdown when clicking outside
     document.addEventListener("click", (e) => {
       if (!settingsWrapper.contains(e.target as Node)) {
         closeSettingsDropdown();
       }
     });
+
+    // Expose open function for /config command
+    (globalThis as any).__gsdOpenSettings = () => {
+      if (!settingsDropdown.classList.contains("open")) {
+        settingsBtn.click();
+      }
+    };
   }
 
   // Thinking badge click is handled by thinkingPicker.init()

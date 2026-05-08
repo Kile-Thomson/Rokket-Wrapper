@@ -111,7 +111,7 @@ describe("RPC failure error state", () => {
 
       updateOverlayIndicators();
 
-      expect(uiDeps.overlayIndicators.innerHTML).toContain("GSD process exited");
+      expect(uiDeps.overlayIndicators.innerHTML).toContain("Process exited");
       expect(uiDeps.overlayIndicators.innerHTML).toContain("(code: 1)");
       expect(uiDeps.overlayIndicators.innerHTML).toContain("ECONNREFUSED 127.0.0.1:9321");
       expect(uiDeps.overlayIndicators.querySelector("#restartBtn")).toBeTruthy();
@@ -123,7 +123,7 @@ describe("RPC failure error state", () => {
 
       updateOverlayIndicators();
 
-      expect(uiDeps.overlayIndicators.innerHTML).not.toContain("GSD process exited");
+      expect(uiDeps.overlayIndicators.innerHTML).not.toContain("Process exited");
       expect(uiDeps.overlayIndicators.querySelector("#restartBtn")).toBeNull();
       expect(uiDeps.overlayIndicators.classList.contains("gsd-hidden")).toBe(true);
     });
@@ -133,7 +133,7 @@ describe("RPC failure error state", () => {
 
       updateOverlayIndicators();
 
-      expect(uiDeps.overlayIndicators.innerHTML).not.toContain("GSD process exited");
+      expect(uiDeps.overlayIndicators.innerHTML).not.toContain("Process exited");
       expect(uiDeps.overlayIndicators.querySelector("#restartBtn")).toBeNull();
     });
   });
@@ -146,7 +146,7 @@ describe("RPC failure error state", () => {
 
       updateWelcomeScreen();
 
-      expect(dashDeps.welcomeProcess.textContent).toContain("GSD failed to start");
+      expect(dashDeps.welcomeProcess.textContent).toContain("Claude Code failed to start");
     });
 
     it("shows normal message when processStatus is running", () => {

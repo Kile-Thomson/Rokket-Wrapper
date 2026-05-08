@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { ClaudeCodeProvider } from "./provider/ClaudeCodeProvider";
-import { fetchReleaseNotes } from "./update-checker";
+
 import type { ExtensionToWebviewMessage } from "../shared/types";
 import { TopicManager, type TopicManagerLogger } from "./telegram/topicManager";
 import { TelegramApi, redactToken } from "./telegram/api";
@@ -14,6 +14,7 @@ import { transcribeWithProvider, validateApiKey, type TranscriptionProvider } fr
 import { getTranscriptionApiKey, setTranscriptionApiKey, getVoiceProvider, getAzureRegion } from "./transcription/config";
 import { AudioRecorder } from "./transcription/recorder";
 import { getWebviewHtml } from "./html-generator";
+import { ConversationHistory, generateConversationId, type ConversationRecord, type HistoryMessage } from "./history";
 
 // ============================================================
 // WebviewProvider — manages one Claude Code session per webview panel/sidebar
@@ -33,6 +34,13 @@ interface SessionState {
   accumulatedCost: number;
   messageHandlerDisposable: vscode.Disposable | null;
   launchPromise: Promise<void> | null;
+  selectedModel: string | null;
+  selectedEffort: string | null;
+  activeModel: string | null;
+  conversationId: string | null;
+  conversationMessages: HistoryMessage[];
+  currentAssistantText: string;
+  lastUserMessage: string | null;
 }
 
 function createSessionState(): SessionState {
@@ -44,6 +52,13 @@ function createSessionState(): SessionState {
     accumulatedCost: 0,
     messageHandlerDisposable: null,
     launchPromise: null,
+    selectedModel: null,
+    selectedEffort: null,
+    activeModel: null,
+    conversationId: null,
+    conversationMessages: [],
+    currentAssistantText: "",
+    lastUserMessage: null,
   };
 }
 
@@ -53,6 +68,81 @@ function cleanupSessionState(session: SessionState): void {
   session.messageHandlerDisposable?.dispose();
   session.messageHandlerDisposable = null;
 }
+
+/** Selectable models shown in the picker — aliases resolve to latest, specific IDs pin a version. */
+const SELECTABLE_MODELS: string[] = [
+  "claude-opus-4-7",
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5-20251001",
+];
+
+const CONTEXT_WINDOWS: Record<string, number> = {
+  "claude-opus-4-7": 1_000_000,
+  "claude-opus-4-6": 1_000_000,
+  "claude-sonnet-4-6": 200_000,
+  "claude-haiku-4-5-20251001": 200_000,
+};
+
+function contextWindowFor(id: string): number {
+  if (CONTEXT_WINDOWS[id]) return CONTEXT_WINDOWS[id];
+  const lower = id.toLowerCase();
+  for (const [key, val] of Object.entries(CONTEXT_WINDOWS)) {
+    if (lower.includes(key)) return val;
+  }
+  return 200_000;
+}
+
+function isReasoningModel(id: string): boolean {
+  const lower = id.toLowerCase();
+  return lower.includes("opus") || lower.includes("sonnet");
+}
+
+/**
+ * Parse a model ID (e.g. "claude-opus-4-7", "opus", "claude-haiku-4-5-20251001")
+ * into a human-readable display name.
+ */
+function formatModelName(id: string): string {
+  const match = id.toLowerCase().match(/^claude-(\w+)-(\d+)-(\d+)(?:-.*)?$/);
+  if (match) {
+    const family = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+    return `Claude ${family} ${match[2]}.${match[3]}`;
+  }
+  return id;
+}
+
+function resolveModelInfo(id: string) {
+  return {
+    id,
+    name: formatModelName(id),
+    provider: "Anthropic",
+    reasoning: isReasoningModel(id),
+    contextWindow: contextWindowFor(id),
+  };
+}
+
+const THINKING_LEVELS = ["off", "low", "medium", "high", "xhigh"] as const;
+
+const EFFORT_MAP: Record<string, string> = {
+  off: "low",
+  minimal: "low",
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: "max",
+};
+
+const CLAUDE_CODE_COMMANDS = [
+  { name: "compact", description: "Compact conversation context", source: "claude-code" },
+  { name: "help", description: "Show available commands", source: "claude-code" },
+  { name: "status", description: "Show current session status", source: "claude-code" },
+  { name: "clear", description: "Clear conversation history", source: "claude-code" },
+  { name: "config", description: "View or change settings", source: "claude-code" },
+  { name: "review", description: "Review code changes", source: "claude-code" },
+  { name: "init", description: "Initialize CLAUDE.md for this project", source: "claude-code" },
+  { name: "bug", description: "Report a bug", source: "claude-code" },
+  { name: "doctor", description: "Check Claude Code health", source: "claude-code" },
+];
 
 export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "rokketWrapper.sidebarView";
@@ -67,12 +157,15 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
   private topicManager: TopicManager | null = null;
   private bridge: TelegramBridge | null = null;
   private recorder = new AudioRecorder();
+  private history!: ConversationHistory;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly context: vscode.ExtensionContext
+    private readonly context: vscode.ExtensionContext,
+    output?: vscode.OutputChannel
   ) {
-    this.output = vscode.window.createOutputChannel("RokketWrapper");
+    this.output = output ?? vscode.window.createOutputChannel("RokketWrapper");
+    this.history = new ConversationHistory(this.context.globalState);
   }
 
   // ----------------------------------------------------------------
@@ -190,6 +283,10 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
 
   private async handleVoiceTranscription(audioBuffer: Buffer, webview: vscode.Webview): Promise<void> {
     try {
+      if (audioBuffer.length < 1000) {
+        this.postToWebview(webview, { type: "voice_error", message: "Recording too short — no audio captured." } as any);
+        return;
+      }
       const config = vscode.workspace.getConfiguration("rokketWrapper");
       const provider = getVoiceProvider(config);
       const apiKey = await getTranscriptionApiKey(this.context.secrets, provider);
@@ -201,6 +298,10 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         { provider, apiKey, azureRegion: getAzureRegion(config) },
         audioBuffer,
       );
+      if (!text.trim()) {
+        this.postToWebview(webview, { type: "voice_error", message: "No speech detected. Try again." } as any);
+        return;
+      }
       this.postToWebview(webview, { type: "voice_transcription", text } as any);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -331,7 +432,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist")],
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist"), this.extensionUri],
     };
     webviewView.webview.html = getWebviewHtml(this.extensionUri, webviewView.webview, sessionId);
     this.setupWebviewMessageHandling(webviewView.webview, sessionId);
@@ -344,7 +445,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       {
         enableScripts: true,
         retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist")],
+        localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist"), this.extensionUri],
       }
     );
     this.getSession(sessionId).panel = panel;
@@ -396,46 +497,112 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       this.output.appendLine(`[${sessionId}] ${msg}`);
     });
 
+    provider.on("system_init", (info: { sessionId: string; model: string }) => {
+      const session = this.getSession(sessionId);
+      session.activeModel = info.model;
+      const wv = session.webview ?? webview;
+      const resolved = resolveModelInfo(info.model);
+      this.postToWebview(wv, {
+        type: "state",
+        data: { model: resolved },
+      } as any);
+    });
+
     provider.on("agent_start", () => {
       const wv = this.getSession(sessionId).webview ?? webview;
       this.getSession(sessionId).isStreaming = true;
       this.emitStatus({ isStreaming: true });
-      this.postToWebview(wv, { type: "process_status", status: "running" } as ExtensionToWebviewMessage);
+      this.postToWebview(wv, { type: "agent_start" } as any);
     });
 
     provider.on("message_chunk", (text: string) => {
-      const wv = this.getSession(sessionId).webview ?? webview;
-      // Forward as a streaming delta — webview assembles the full message
-      this.postToWebview(wv, { type: "stream_chunk", delta: text } as any);
+      const session = this.getSession(sessionId);
+      session.currentAssistantText += text;
+      const wv = session.webview ?? webview;
+      this.postToWebview(wv, {
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", delta: text },
+      } as any);
       this.bridge?.handleStreamingChunk(sessionId, text);
     });
 
-    provider.on("message_end", () => {
+    provider.on("message_end", (usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }) => {
       const wv = this.getSession(sessionId).webview ?? webview;
-      this.postToWebview(wv, { type: "stream_end" } as any);
+      this.postToWebview(wv, {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          ...(usage ? { usage } : {}),
+        },
+      } as any);
     });
 
     provider.on("tool_call", (tool: { name: string; input: unknown; id: string }) => {
       const wv = this.getSession(sessionId).webview ?? webview;
-      this.postToWebview(wv, { type: "tool_call", tool } as any);
+      this.postToWebview(wv, {
+        type: "tool_execution_start",
+        toolCallId: tool.id,
+        toolName: tool.name,
+        args: tool.input,
+      } as any);
       this.bridge?.handleToolStart(sessionId, tool.id, tool.name, tool.input);
     });
 
     provider.on("tool_result", (result: { id: string; content: string; isError: boolean }) => {
       const wv = this.getSession(sessionId).webview ?? webview;
-      this.postToWebview(wv, { type: "tool_result", result } as any);
+      this.postToWebview(wv, {
+        type: "tool_execution_end",
+        toolCallId: result.id,
+        isError: result.isError,
+        result: { content: [{ type: "text", text: result.content }] },
+      } as any);
       this.bridge?.handleToolEnd(result.id, result.isError, 0);
     });
 
-    provider.on("agent_end", (stats: { durationMs: number; costUsd?: number }) => {
-      const wv = this.getSession(sessionId).webview ?? webview;
-      this.getSession(sessionId).isStreaming = false;
+    provider.on("agent_end", (stats: { durationMs: number; costUsd?: number; usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }; contextWindow?: number }) => {
+      const session = this.getSession(sessionId);
+      const wv = session.webview ?? webview;
+      session.isStreaming = false;
       if (stats.costUsd !== undefined) {
-        this.getSession(sessionId).accumulatedCost += stats.costUsd;
+        session.accumulatedCost += stats.costUsd;
       }
-      this.emitStatus({ isStreaming: false, cost: this.getSession(sessionId).accumulatedCost });
+      this.emitStatus({ isStreaming: false, cost: session.accumulatedCost });
+
+      if (stats.contextWindow) {
+        this.postToWebview(wv, {
+          type: "session_stats",
+          data: { contextWindow: stats.contextWindow },
+        } as any);
+      }
+
+      if (stats.usage || stats.costUsd !== undefined) {
+        this.postToWebview(wv, {
+          type: "cost_update",
+          runId: sessionId,
+          turnCost: stats.costUsd ?? 0,
+          cumulativeCost: session.accumulatedCost,
+          tokens: {
+            input: stats.usage?.input ?? 0,
+            output: stats.usage?.output ?? 0,
+            cacheRead: stats.usage?.cacheRead ?? 0,
+            cacheWrite: stats.usage?.cacheWrite ?? 0,
+          },
+        } as any);
+      }
+
       this.postToWebview(wv, { type: "agent_end", durationMs: stats.durationMs, costUsd: stats.costUsd } as any);
       this.bridge?.handleAgentEnd(sessionId);
+
+      // Save assistant response to history
+      if (session.currentAssistantText.trim()) {
+        session.conversationMessages.push({
+          role: "assistant",
+          text: session.currentAssistantText,
+          timestamp: Date.now(),
+        });
+        session.currentAssistantText = "";
+        this.persistConversation(session).catch(() => {});
+      }
     });
 
     provider.on("error", (err: Error) => {
@@ -461,9 +628,12 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
 
     this.postToWebview(webview, { type: "process_status", status: "starting" } as ExtensionToWebviewMessage);
 
+    const session = this.getSession(sessionId);
     const provider = new ClaudeCodeProvider(claudePath);
+    provider.model = session.selectedModel;
+    provider.effort = session.selectedEffort;
     this._bindProviderListeners(provider, webview, sessionId);
-    this.getSession(sessionId).provider = provider;
+    session.provider = provider;
 
     try {
       await provider.start(workingDir);
@@ -509,9 +679,26 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
           useCtrlEnterToSend: this.getUseCtrlEnter(),
           theme: this.getTheme(),
         } as ExtensionToWebviewMessage);
+        const readySession = this.getSession(sessionId);
+        const currentModel = readySession.selectedModel
+          ?? this.context.globalState.get<string>(RokketWrapperWebviewProvider.LAST_MODEL_KEY) ?? null;
+        const persistedThinking = this.context.globalState.get<string>(RokketWrapperWebviewProvider.LAST_THINKING_KEY) ?? null;
+        if (currentModel && !readySession.selectedModel) {
+          readySession.selectedModel = currentModel;
+          if (readySession.provider) readySession.provider.model = currentModel;
+        }
+        if (persistedThinking && !readySession.selectedEffort) {
+          const effort = EFFORT_MAP[persistedThinking] || null;
+          readySession.selectedEffort = persistedThinking === "off" ? null : effort;
+          if (readySession.provider) readySession.provider.effort = readySession.selectedEffort;
+        }
         this.postToWebview(webview, {
           type: "state",
-          data: { telegramSyncActive: this.topicManager?.getTopicForSession(sessionId) !== undefined },
+          data: {
+            telegramSyncActive: this.topicManager?.getTopicForSession(sessionId) !== undefined,
+            ...(currentModel ? { model: resolveModelInfo(currentModel) } : {}),
+            ...(persistedThinking ? { thinkingLevel: persistedThinking } : {}),
+          },
         } as any);
         await this.sendVoiceConfig(webview);
         break;
@@ -523,16 +710,38 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         break;
       }
 
+      case "get_commands": {
+        this.postToWebview(webview, { type: "commands", commands: CLAUDE_CODE_COMMANDS } as any);
+        break;
+      }
+
       case "prompt": {
-        const text = typeof msg.text === "string" ? msg.text : "";
-        if (!text.trim()) break;
+        const text = typeof msg.text === "string" ? msg.text : typeof msg.message === "string" ? msg.message : "";
+        const hasImages = Array.isArray(msg.images) && msg.images.length > 0;
+        if (!text.trim() && !hasImages) break;
         const session = this.getSession(sessionId);
         if (!session.provider) {
-          // Auto-launch if not running
           await this.launchProvider(webview, sessionId);
         }
+
+        // Initialize conversation on first prompt
+        if (!session.conversationId) {
+          session.conversationId = generateConversationId();
+          session.conversationMessages = [];
+          session.currentAssistantText = "";
+        }
+
+        // Record user message
+        session.conversationMessages.push({
+          role: "user",
+          text,
+          timestamp: Date.now(),
+        });
+        session.lastUserMessage = text;
+
+        const images = Array.isArray(msg.images) ? msg.images : undefined;
         try {
-          await session.provider!.prompt(text);
+          await session.provider!.prompt(text, images);
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
           this.output.appendLine(`[${sessionId}] Prompt error: ${errMsg}`);
@@ -597,6 +806,168 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         }
         break;
 
+      case "launch_gsd": {
+        const cwd = typeof msg.cwd === "string" ? msg.cwd : undefined;
+        await this.launchProvider(webview, sessionId, cwd);
+        break;
+      }
+
+      case "get_available_models": {
+        this.postToWebview(webview, { type: "available_models", models: SELECTABLE_MODELS.map(id => resolveModelInfo(id)) } as any);
+        break;
+      }
+
+      case "set_model": {
+        const modelId = typeof msg.modelId === "string" ? msg.modelId : null;
+        const session = this.getSession(sessionId);
+        session.selectedModel = modelId;
+        if (session.provider) {
+          session.provider.model = modelId;
+        }
+        this.context.globalState.update(RokketWrapperWebviewProvider.LAST_MODEL_KEY, modelId);
+        this.output.appendLine(`[${sessionId}] Model set to: ${modelId}`);
+        if (modelId) {
+          this.postToWebview(webview, {
+            type: "state",
+            data: {
+              model: resolveModelInfo(modelId),
+            },
+          } as any);
+        }
+        break;
+      }
+
+      case "set_thinking_level": {
+        const level = typeof msg.level === "string" ? msg.level : "off";
+        const session = this.getSession(sessionId);
+        const effort = EFFORT_MAP[level] || null;
+        session.selectedEffort = level === "off" ? null : effort;
+        if (session.provider) {
+          session.provider.effort = session.selectedEffort;
+        }
+        this.context.globalState.update(RokketWrapperWebviewProvider.LAST_THINKING_KEY, level);
+        this.output.appendLine(`[${sessionId}] Thinking level set to: ${level} (effort: ${effort})`);
+        this.postToWebview(webview, { type: "thinking_level_changed", level } as any);
+        break;
+      }
+
+      case "cycle_thinking_level": {
+        const session = this.getSession(sessionId);
+        const currentEffort = session.selectedEffort;
+        const currentIdx = THINKING_LEVELS.findIndex(l => EFFORT_MAP[l] === currentEffort);
+        const nextIdx = (currentIdx + 1) % THINKING_LEVELS.length;
+        const nextLevel = THINKING_LEVELS[nextIdx];
+        const effort = EFFORT_MAP[nextLevel] || null;
+        session.selectedEffort = nextLevel === "off" ? null : effort;
+        if (session.provider) {
+          session.provider.effort = session.selectedEffort;
+        }
+        this.context.globalState.update(RokketWrapperWebviewProvider.LAST_THINKING_KEY, nextLevel);
+        this.output.appendLine(`[${sessionId}] Thinking cycled to: ${nextLevel} (effort: ${effort})`);
+        this.postToWebview(webview, { type: "thinking_level_changed", level: nextLevel } as any);
+        break;
+      }
+
+      case "new_conversation": {
+        const session = this.getSession(sessionId);
+        session.provider?.resetSession();
+        session.conversationId = null;
+        session.conversationMessages = [];
+        session.currentAssistantText = "";
+        session.lastUserMessage = null;
+        break;
+      }
+
+      case "get_session_list": {
+        const sessions = this.history.list();
+        this.postToWebview(webview, { type: "session_list", sessions } as any);
+        break;
+      }
+
+      case "switch_session": {
+        const targetId = typeof msg.path === "string" ? msg.path : "";
+        if (!targetId) break;
+        const record = this.history.get(targetId);
+        if (!record) {
+          this.postToWebview(webview, { type: "session_list_error", message: "Session not found" } as any);
+          break;
+        }
+
+        const session = this.getSession(sessionId);
+        // Stop current provider
+        if (session.provider) {
+          await session.provider.stop();
+          session.provider = null;
+        }
+
+        // Set up for continuation
+        session.conversationId = record.id;
+        session.conversationMessages = [...record.messages];
+        session.currentAssistantText = "";
+        session.lastUserMessage = null;
+
+        // Convert history messages to AgentMessage format for display
+        const agentMessages = record.messages.map(m => ({
+          role: m.role as "user" | "assistant",
+          content: m.text,
+          timestamp: m.timestamp,
+        }));
+
+        this.postToWebview(webview, {
+          type: "session_switched",
+          state: {
+            model: session.selectedModel ? resolveModelInfo(session.selectedModel) : null,
+            isStreaming: false,
+            isCompacting: false,
+            sessionId: record.id,
+            sessionName: record.title,
+            messageCount: record.messages.length,
+            autoCompactionEnabled: false,
+            thinkingLevel: "off",
+            sessionFile: null,
+          },
+          messages: agentMessages,
+        } as any);
+
+        // Relaunch provider and inject summary for context
+        await this.launchProvider(webview, sessionId);
+        const refreshed = this.getSession(sessionId);
+        if (refreshed.provider) {
+          const summary = this.history.buildSummaryPrompt(record);
+          try {
+            await refreshed.provider.prompt(summary);
+          } catch {
+            // Best effort — the conversation is still displayed
+          }
+        }
+        break;
+      }
+
+      case "delete_session": {
+        const deleteId = typeof msg.path === "string" ? msg.path : "";
+        if (deleteId) {
+          await this.history.delete(deleteId);
+          const session = this.getSession(sessionId);
+          if (session.conversationId === deleteId) {
+            session.conversationId = null;
+            session.conversationMessages = [];
+          }
+        }
+        break;
+      }
+
+      case "rename_session": {
+        const newName = typeof msg.name === "string" ? msg.name : "";
+        const session = this.getSession(sessionId);
+        if (newName && session.conversationId) {
+          await this.history.rename(session.conversationId, newName);
+        }
+        break;
+      }
+
+      case "get_session_stats":
+        break;
+
       case "cleanup_temp":
         this.cleanupTempFiles();
         break;
@@ -609,6 +980,23 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
   // ----------------------------------------------------------------
   // Utility
   // ----------------------------------------------------------------
+
+  private async persistConversation(session: SessionState): Promise<void> {
+    if (!session.conversationId || session.conversationMessages.length === 0) return;
+    const firstUserMsg = session.conversationMessages.find(m => m.role === "user");
+    const title = firstUserMsg
+      ? (firstUserMsg.text.length > 80 ? firstUserMsg.text.slice(0, 80) + "..." : firstUserMsg.text)
+      : "Untitled";
+    const record: ConversationRecord = {
+      id: session.conversationId,
+      title,
+      model: session.activeModel,
+      messages: session.conversationMessages,
+      created: session.conversationMessages[0]?.timestamp ?? Date.now(),
+      modified: Date.now(),
+    };
+    await this.history.save(record);
+  }
 
   private postToWebview(webview: vscode.Webview, message: ExtensionToWebviewMessage | Record<string, unknown>): void {
     webview.postMessage(message);
@@ -636,6 +1024,8 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
   }
 
   private static readonly LAST_VERSION_KEY = "rokketWrapper.lastSeenVersion";
+  private static readonly LAST_MODEL_KEY = "rokketWrapper.lastModel";
+  private static readonly LAST_THINKING_KEY = "rokketWrapper.lastThinkingLevel";
 
   private async checkWhatsNew(webview: vscode.Webview): Promise<void> {
     const ext = vscode.extensions.getExtension("rokketek.rokket-wrapper");
@@ -644,12 +1034,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     const lastVersion = this.context.globalState.get<string>(RokketWrapperWebviewProvider.LAST_VERSION_KEY);
     await this.context.globalState.update(RokketWrapperWebviewProvider.LAST_VERSION_KEY, currentVersion);
     if (lastVersion === currentVersion) return;
-    try {
-      const notes = await fetchReleaseNotes(currentVersion);
-      if (notes) {
-        this.postToWebview(webview, { type: "whats_new", version: currentVersion, notes } as ExtensionToWebviewMessage);
-      }
-    } catch { /* best-effort */ }
+    this.postToWebview(webview, { type: "whats_new", version: currentVersion, notes: "" } as ExtensionToWebviewMessage);
   }
 
   private ensureTempDir(): string {

@@ -1,5 +1,5 @@
 import { state } from "./state";
-import { scrollToBottom } from "./helpers";
+import { scrollToBottom, escapeHtml } from "./helpers";
 import type { DashboardData, DashboardSlice, MilestoneRegistryEntry } from "../shared/types";
 
 // ============================================================
@@ -64,8 +64,8 @@ export function renderDashboard(data: DashboardData | null): void {
 function renderEmptyState(): string {
   return `
     <div class="gsd-dashboard-empty">
-      <p>No active GSD project</p>
-      <p>Run <code>/gsd</code> to get started</p>
+      <p>No active project</p>
+      <p>Start a conversation to begin</p>
     </div>
   `;
 }
@@ -112,12 +112,12 @@ function renderSlice(slice: DashboardSlice): string {
   const tasksHtml = (slice.active && slice.tasks.length > 0)
     ? `<div class="gsd-dash-tasks">${slice.tasks.map(t => {
         const tClass = t.done ? "done" : t.active ? "active" : "pending";
-        return `<div class="gsd-dash-task ${tClass}">${t.id}: ${t.title}</div>`;
+        return `<div class="gsd-dash-task ${tClass}">${escapeHtml(t.id)}: ${escapeHtml(t.title)}</div>`;
       }).join("")}</div>`
     : "";
   return `
     <div class="gsd-dash-slice ${stateClass}">
-      <span>${slice.id}: ${slice.title}</span>
+      <span>${escapeHtml(slice.id)}: ${escapeHtml(slice.title)}</span>
       ${tasksHtml}
     </div>
   `;
@@ -125,7 +125,7 @@ function renderSlice(slice: DashboardSlice): string {
 
 function renderMilestoneEntry(m: MilestoneRegistryEntry): string {
   const cls = m.done ? "done" : m.active ? "active" : "pending";
-  return `<div class="gsd-dash-milestone ${cls}">${m.id}: ${m.title}</div>`;
+  return `<div class="gsd-dash-milestone ${cls}">${escapeHtml(m.id)}: ${escapeHtml(m.title)}</div>`;
 }
 
 function renderStats(stats: NonNullable<DashboardData["stats"]>): string {
@@ -159,9 +159,9 @@ function renderFullDashboard(data: DashboardData): string {
   // Milestone info
   const milestoneHtml = data.milestone ? `
     <div class="gsd-dashboard-milestone">
-      <span class="gsd-dash-milestone-id">${data.milestone.id}</span>
-      <span class="gsd-dash-milestone-title">${data.milestone.title}</span>
-      ${breadcrumb ? `<span class="gsd-dash-breadcrumb">${breadcrumb}</span>` : ""}
+      <span class="gsd-dash-milestone-id">${escapeHtml(data.milestone.id)}</span>
+      <span class="gsd-dash-milestone-title">${escapeHtml(data.milestone.title)}</span>
+      ${breadcrumb ? `<span class="gsd-dash-breadcrumb">${escapeHtml(breadcrumb)}</span>` : ""}
     </div>
   ` : "";
 
@@ -184,7 +184,7 @@ function renderFullDashboard(data: DashboardData): string {
   const blockersHtml = data.blockers.length > 0 ? `
     <div class="gsd-dashboard-blockers">
       <div class="gsd-dashboard-section-title">Blockers</div>
-      ${data.blockers.map(b => `<div class="gsd-dash-blocker">${b}</div>`).join("")}
+      ${data.blockers.map(b => `<div class="gsd-dash-blocker">${escapeHtml(b)}</div>`).join("")}
     </div>
   ` : "";
 
@@ -192,7 +192,7 @@ function renderFullDashboard(data: DashboardData): string {
   const nextHtml = data.nextAction ? `
     <div class="gsd-dashboard-next">
       <span class="gsd-dashboard-next-label">Next</span>
-      <span>${data.nextAction}</span>
+      <span>${escapeHtml(data.nextAction)}</span>
     </div>
   ` : "";
 

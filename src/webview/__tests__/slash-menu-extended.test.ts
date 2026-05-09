@@ -195,6 +195,7 @@ describe("slash-menu", () => {
       show("telegram");
       const items = getFilteredItems();
       const telegramIdx = items.findIndex(i => i.name === "telegram" && i.source === "webview");
+      expect(telegramIdx).not.toBe(-1);
       for (let i = 0; i < telegramIdx; i++) navigateDown();
       selectCurrent();
       expect(deps.vscode.postMessage).toHaveBeenCalledWith({ type: "telegram_setup" });

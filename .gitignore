@@ -31,3 +31,4 @@ vendor/
 coverage/
 .cache/
 tmp/
+tsconfig.tsbuildinfo

@@ -216,8 +216,14 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       (sessionId: string) => {
         const s = this.sessions.get(sessionId);
         if (!s) return undefined;
-        // TODO: expose a lightweight client-like interface for the bridge
-        return undefined;
+        return {
+          client: s.provider ? {
+            abort: () => s.provider!.abort(),
+            prompt: (message: string, images?: import("./telegram/bridge").BridgeImage[]) =>
+              s.provider!.prompt(message, images),
+          } : null,
+          isStreaming: s.isStreaming,
+        };
       },
       bridgeLogger,
       telegramConfig.botToken,

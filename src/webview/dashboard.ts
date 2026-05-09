@@ -70,14 +70,21 @@ function renderEmptyState(): string {
   `;
 }
 
-function renderPhaseLabel(phase: string): string {
+const VALID_PHASES = ["executing", "planning", "reviewing", "complete", "validate-milestone"] as const;
+type ValidPhase = typeof VALID_PHASES[number];
+
+function sanitizePhase(phase: string): ValidPhase | "unknown" {
+  return (VALID_PHASES as readonly string[]).includes(phase) ? phase as ValidPhase : "unknown";
+}
+
+function renderPhaseLabel(phase: ValidPhase | "unknown"): string {
   switch (phase) {
     case "executing": return "Executing";
     case "planning": return "Planning";
     case "reviewing": return "Reviewing";
     case "complete": return "Complete";
     case "validate-milestone": return "Validating";
-    default: return phase.charAt(0).toUpperCase() + phase.slice(1);
+    default: return "Unknown";
   }
 }
 
@@ -146,7 +153,7 @@ function renderStats(stats: NonNullable<DashboardData["stats"]>): string {
 }
 
 function renderFullDashboard(data: DashboardData): string {
-  const phase = data.phase;
+  const phase = sanitizePhase(data.phase);
   const phaseLabel = renderPhaseLabel(phase);
 
   // Breadcrumb

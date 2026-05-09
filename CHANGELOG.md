@@ -10,6 +10,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `getKnownBinDirs()` — fallback PATH injection for common CLI install locations (Homebrew, nvm, fnm, Volta, npm-global, Yarn, Snap) on macOS, Linux, and Windows
+- nvm and fnm active-version detection via alias symlink resolution
+- Windows support in `getKnownBinDirs()` (`%APPDATA%\npm`, Volta, nvm-windows)
+- ENOENT errors now surface actionable install instructions per provider (e.g. `npm install -g @anthropic-ai/claude-code`)
+- Codex detection falls back to binary PATH search when model cache doesn't exist yet
+
+### Changed
+- Shell env timeout increased from 5s to 10s to handle slow shell startup (oh-my-zsh, nvm)
+- `ClaudeCodeProvider` spawns `claude.cmd` on Windows; passes `shell: true` for `.cmd` files
+- PATH separator now correctly uses `;` on Windows throughout shell-env injection
+
 - `IAgentProvider` interface as the normalised provider contract
 - `ClaudeCodeProvider` — spawns `claude --print --output-format stream-json --verbose` and maps NDJSON output to provider events
 - `CodexProvider` — OpenAI Responses API adapter with streaming support

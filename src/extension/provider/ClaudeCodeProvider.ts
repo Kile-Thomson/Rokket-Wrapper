@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from "child_process";
 import { IAgentProvider } from "./IAgentProvider";
-import { resolveShellEnv, mergeShellEnv } from "../shell-env";
+import { resolveShellEnv, mergeShellEnv, getKnownBinDirs } from "../shell-env";
 
 // ============================================================
 // ClaudeCodeProvider — persistent interactive Claude process
@@ -91,7 +91,7 @@ export class ClaudeCodeProvider extends IAgentProvider {
   private _effort: string | null = null;
   private initReceived = false;
 
-  constructor(private readonly claudePath: string = "claude") {
+  constructor(private readonly claudePath: string = process.platform === "win32" ? "claude.cmd" : "claude") {
     super();
   }
 
@@ -114,6 +114,7 @@ export class ClaudeCodeProvider extends IAgentProvider {
     const env = mergeShellEnv(
       { ...process.env } as Record<string, string>,
       shellEnv,
+      getKnownBinDirs(),
     );
 
     const args = [
@@ -139,6 +140,8 @@ export class ClaudeCodeProvider extends IAgentProvider {
       env,
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true,
+      // .cmd files on Windows must be launched via the shell
+      shell: process.platform === "win32",
     });
 
     this.process.stdout!.setEncoding("utf8");

@@ -97,6 +97,29 @@ interface CodexModelsCacheEntry {
   visibility?: string;
 }
 
+// Fallback model list shown when Codex is installed but hasn't populated its cache yet
+// (i.e. has never been run). These are the canonical Codex models as of early 2025.
+const CODEX_DEFAULT_MODELS: SelectableModel[] = [
+  { id: "codex-mini-latest", name: "Codex Mini (Latest)", provider: "OpenAI", agentBackend: "codex", reasoning: true, contextWindow: 200_000 },
+  { id: "o4-mini",           name: "o4-mini",             provider: "OpenAI", agentBackend: "codex", reasoning: true, contextWindow: 200_000 },
+];
+
+function isCodexBinaryAvailable(): boolean {
+  const candidates = process.platform === "win32"
+    ? ["codex.cmd", "codex"]
+    : ["codex"];
+  const searchDirs = (process.env.PATH || "").split(process.platform === "win32" ? ";" : ":");
+  for (const bin of candidates) {
+    for (const dir of searchDirs) {
+      try {
+        const full = path.join(dir, bin);
+        if (fs.statSync(full).isFile()) return true;
+      } catch { /* not there */ }
+    }
+  }
+  return false;
+}
+
 async function loadCodexModels(): Promise<SelectableModel[]> {
   try {
     const cachePath = path.join(os.homedir(), ".codex", "models_cache.json");
@@ -113,7 +136,9 @@ async function loadCodexModels(): Promise<SelectableModel[]> {
         contextWindow: 200_000,
       }));
   } catch {
-    // Codex not installed or cache not yet populated — return empty list
+    // Cache not yet populated (Codex installed but never run). Fall back to
+    // binary detection so the model picker still shows Codex options.
+    if (isCodexBinaryAvailable()) return CODEX_DEFAULT_MODELS;
     return [];
   }
 }
@@ -645,11 +670,18 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       this.emitStatus({ isStreaming: false });
       const providerName = agentBackend === "codex" ? "Codex" : "Claude Code";
       const providerCmd = agentBackend === "codex" ? "codex" : "claude";
+      const installHint = agentBackend === "codex"
+        ? "Install with: npm install -g @openai/codex"
+        : "Install with: npm install -g @anthropic-ai/claude-code";
+      const isNotFound = err.message.includes("ENOENT") || err.message.includes("not found");
+      const detail = isNotFound
+        ? `${providerName} CLI not found. ${installHint}. Then restart VS Code.`
+        : `${providerName} error: ${err.message}. Make sure '${providerCmd}' is installed and in your PATH.`;
       this.postToWebview(wv, {
         type: "process_exit",
         code: null,
         signal: null,
-        detail: `${providerName} error: ${err.message}. Make sure '${providerCmd}' is installed and in your PATH.`,
+        detail,
       });
       this.postToWebview(wv, { type: "process_status", status: "crashed" } as ExtensionToWebviewMessage);
     });
@@ -659,7 +691,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     const workspaceFolders = vscode.workspace.workspaceFolders;
     const workingDir = cwd || workspaceFolders?.[0]?.uri.fsPath || process.cwd();
     const config = vscode.workspace.getConfiguration("rokketWrapper");
-    const claudePath = config.get<string>("claudeCodePath", "") || "claude";
+    const claudePath = config.get<string>("claudeCodePath", "") || (process.platform === "win32" ? "claude.cmd" : "claude");
 
     this.postToWebview(webview, { type: "process_status", status: "starting" } as ExtensionToWebviewMessage);
 
@@ -705,11 +737,18 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       const msg = err instanceof Error ? err.message : String(err);
       const providerName = agentBackend === "codex" ? "Codex" : "Claude Code";
       const providerCmd = agentBackend === "codex" ? "codex" : "claude";
+      const installHint = agentBackend === "codex"
+        ? "Install with: npm install -g @openai/codex"
+        : "Install with: npm install -g @anthropic-ai/claude-code";
+      const isNotFound = msg.includes("ENOENT") || msg.includes("not found");
+      const detail = isNotFound
+        ? `${providerName} CLI not found. ${installHint}. Then restart VS Code.`
+        : `Failed to start ${providerName}: ${msg}. Make sure '${providerCmd}' is installed and in your PATH.`;
       this.postToWebview(webview, {
         type: "process_exit",
         code: null,
         signal: null,
-        detail: `Failed to start ${providerName}: ${msg}. Make sure '${providerCmd}' is installed and in your PATH.`,
+        detail,
       });
       this.postToWebview(webview, { type: "process_status", status: "crashed" } as ExtensionToWebviewMessage);
     }

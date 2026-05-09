@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { IAgentProvider } from "./IAgentProvider";
-import { resolveShellEnv, mergeShellEnv } from "../shell-env";
+import { resolveShellEnv, mergeShellEnv, getKnownBinDirs } from "../shell-env";
 
 // ============================================================
 // CodexProvider — @openai/codex CLI wrapper
@@ -122,6 +122,7 @@ export class CodexProvider extends IAgentProvider {
     const env = mergeShellEnv(
       { ...process.env } as Record<string, string>,
       shellEnv,
+      getKnownBinDirs(),
     );
 
     const args = this.buildArgs(tempFiles);

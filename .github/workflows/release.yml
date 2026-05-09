@@ -1,0 +1,146 @@
+name: Release VSIX
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    if: >-
+      !startsWith(github.event.head_commit.message, 'chore: bump version')
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Configure git
+        run: |
+          git config user.name "Kile Thomson"
+          git config user.email "260275437+Kile-Thomson@users.noreply.github.com"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bump patch version
+        id: version
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          EXISTING=$(gh release view "v${CURRENT}" --json tagName 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING" ]; then
+            PATCH=$((PATCH + 1))
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+            node -e "
+              const pkg = require('./package.json');
+              pkg.version = '${NEW_VERSION}';
+              require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, '\t') + '\n');
+            "
+
+            echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+            echo "Bumped version: ${CURRENT} → ${NEW_VERSION}"
+          else
+            echo "version=${CURRENT}" >> "$GITHUB_OUTPUT"
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+            echo "Using current version: ${CURRENT}"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        run: npm run build
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package --no-dependencies
+
+      - name: Commit version bump
+        if: steps.version.outputs.bumped == 'true'
+        run: |
+          git add package.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          cat > /tmp/extract_changelog.py << 'PYEOF'
+          import sys, re, subprocess
+
+          version = sys.argv[1]
+          changelog_path = "CHANGELOG.md"
+          output_path = "/tmp/release-notes.md"
+
+          try:
+              with open(changelog_path, "r", encoding="utf-8") as f:
+                  content = f.read()
+          except FileNotFoundError:
+              content = ""
+
+          pattern = rf"^## \[v?{re.escape(version)}\].*$"
+          match = re.search(pattern, content, re.MULTILINE)
+
+          if match:
+              start = match.end()
+              next_heading = re.search(r"^## \[", content[start:], re.MULTILINE)
+              if next_heading:
+                  section = content[start:start + next_heading.start()]
+              else:
+                  section = content[start:]
+              notes = section.strip()
+          else:
+              notes = ""
+
+          if not notes:
+              try:
+                  result = subprocess.run(
+                      ["git", "log", "--oneline", "--no-merges",
+                       "--format=- %s", "HEAD~10..HEAD",
+                       "--invert-grep", "--grep=chore: bump version"],
+                      capture_output=True, text=True, timeout=10
+                  )
+                  commits = result.stdout.strip()
+              except Exception:
+                  commits = ""
+
+              if commits:
+                  notes = "### Changes\n\n" + commits
+              else:
+                  notes = "Patch release."
+
+          with open(output_path, "w", encoding="utf-8") as f:
+              f.write(f"## v{version}\n\n{notes}\n")
+          PYEOF
+
+          python3 /tmp/extract_changelog.py "$VERSION"
+          echo "notes_file=/tmp/release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag and release
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
+
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes-file "${{ steps.changelog.outputs.notes_file }}" \
+            *.vsix
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

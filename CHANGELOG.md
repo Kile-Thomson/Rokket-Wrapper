@@ -7,6 +7,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.12] — 2026-05-10
+
+### Fixed
+- Marketplace icon no longer 404s — corrected `repository.url` in `package.json` to match actual GitHub repo name (`Rokket-Wrapper`)
+- README screenshot no longer renders with hardcoded dimensions — removed fixed `width`/`height` attributes so it scales responsively
+
+---
+
 ## [0.1.9] — 2026-05-10
 
 ### Fixed

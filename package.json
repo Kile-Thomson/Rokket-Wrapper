@@ -2,12 +2,12 @@
 	"name": "rokketek-wrapper",
 	"displayName": "Claude Code & Codex GUI – RokketWrapper",
 	"description": "A premium VS Code GUI for Claude Code and Codex CLI — streaming chat UI, Telegram relay, voice input, and tool visualizations.",
-	"version": "0.1.11",
+	"version": "0.1.12",
 	"publisher": "rokketek",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Kile-Thomson/RokketWrapper"
+		"url": "https://github.com/Kile-Thomson/Rokket-Wrapper"
 	},
 	"icon": "resources/rokket-icon.png",
 	"engines": {

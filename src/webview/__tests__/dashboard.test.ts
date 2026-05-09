@@ -99,8 +99,8 @@ describe("renderDashboard", () => {
 
     const dashboard = deps.messagesContainer.querySelector(".gsd-dashboard");
     expect(dashboard).not.toBeNull();
-    expect(dashboard!.innerHTML).toContain("No active GSD project");
-    expect(dashboard!.innerHTML).toContain("/gsd");
+    expect(dashboard!.innerHTML).toContain("No active project");
+    expect(dashboard!.innerHTML).toContain("Start a conversation");
   });
 
   it("renders empty state when hasProject and hasMilestone are both false", () => {
@@ -119,7 +119,7 @@ describe("renderDashboard", () => {
     });
 
     const dashboard = deps.messagesContainer.querySelector(".gsd-dashboard");
-    expect(dashboard!.innerHTML).toContain("No active GSD project");
+    expect(dashboard!.innerHTML).toContain("No active project");
   });
 
   it("renders dashboard header with phase badge for active project", () => {

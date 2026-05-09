@@ -969,7 +969,7 @@ describe("message-handler", () => {
     it("falls back to known model table for opus-4", () => {
       state.model = { id: "claude-opus-4-6", name: "Opus", provider: "anthropic" };
       startTurnAndEndMessage({ input: 1000, output: 500 });
-      expect(state.sessionStats.contextWindow).toBe(200_000);
+      expect(state.sessionStats.contextWindow).toBe(1_000_000);
     });
 
     it("falls back to known model table for gpt-4o", () => {

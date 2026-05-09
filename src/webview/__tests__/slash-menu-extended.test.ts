@@ -77,13 +77,13 @@ describe("slash-menu", () => {
   });
 
   it("show() filters items by search term", () => {
-    show("model");
+    show("telegram");
     expect(isVisible()).toBe(true);
     const items = getFilteredItems();
     expect(items.length).toBeGreaterThan(0);
-    // All filtered items should match "model" in name or description
+    // All filtered items should match "telegram" in name or description
     for (const item of items) {
-      const matches = item.name.toLowerCase().includes("model") || item.description.toLowerCase().includes("model");
+      const matches = item.name.toLowerCase().includes("telegram") || item.description.toLowerCase().includes("telegram");
       expect(matches).toBe(true);
     }
   });
@@ -143,20 +143,18 @@ describe("slash-menu", () => {
       }
     });
 
-    it("includes gsd core commands", () => {
-      const items = buildItems();
-      const names = items.map(i => i.name);
-      expect(names).toContain("gsd");
-      expect(names).toContain("gsd auto");
-      expect(names).toContain("gsd status");
-    });
-
-    it("includes built-in commands like new, model, compact", () => {
+    it("includes built-in webview commands", () => {
       const items = buildItems();
       const names = items.map(i => i.name);
       expect(names).toContain("new");
-      expect(names).toContain("model");
-      expect(names).toContain("compact");
+      expect(names).toContain("export");
+      expect(names).toContain("telegram");
+    });
+
+    it("includes config command", () => {
+      const items = buildItems();
+      const names = items.map(i => i.name);
+      expect(names).toContain("config");
     });
 
     it("includes server-side commands when loaded", () => {
@@ -183,18 +181,8 @@ describe("slash-menu", () => {
   });
 
   describe("selectCurrent", () => {
-    it("selects a webview command (/compact) and sends message", () => {
-      show("compact");
-      expect(getFilteredItems().length).toBeGreaterThan(0);
-      selectCurrent();
-      expect(deps.vscode.postMessage).toHaveBeenCalledWith({ type: "compact_context" });
-      expect(isVisible()).toBe(false);
-    });
-
     it("selects a webview command (/new) and calls onNewConversation", () => {
-      // Filter specifically enough that /new (webview) is the first match
       show("new");
-      // Navigate to the "new" item (webview source) — find its index
       const items = getFilteredItems();
       const newIdx = items.findIndex(i => i.name === "new" && i.source === "webview");
       for (let i = 0; i < newIdx; i++) navigateDown();
@@ -203,35 +191,28 @@ describe("slash-menu", () => {
       expect(isVisible()).toBe(false);
     });
 
-    it("selects a webview command (/model) and calls onShowModelPicker", () => {
-      show("model");
-      selectCurrent();
-      expect(deps.onShowModelPicker).toHaveBeenCalled();
-    });
-
-    it("selects a sendOnSelect GSD command and triggers send", () => {
-      show("gsd auto");
-      expect(getFilteredItems().length).toBeGreaterThan(0);
-      selectCurrent();
-      expect(deps.onSendMessage).toHaveBeenCalled();
-      expect(isVisible()).toBe(false);
-    });
-
-    it("selects a non-sendOnSelect command and fills input", () => {
-      show("gsd quick");
-      selectCurrent();
-      // Should fill input but not send
-      expect(deps.onSendMessage).not.toHaveBeenCalled();
-      expect(deps.promptInput.value).toContain("/gsd quick");
-    });
-
-    it("selects /history and calls onShowHistory", () => {
-      show("history");
+    it("selects a webview command (/telegram) and posts telegram_setup", () => {
+      show("telegram");
       const items = getFilteredItems();
-      const histIdx = items.findIndex(i => i.name === "history" && i.source === "webview");
-      for (let i = 0; i < histIdx; i++) navigateDown();
+      const telegramIdx = items.findIndex(i => i.name === "telegram" && i.source === "webview");
+      expect(telegramIdx).not.toBe(-1);
+      for (let i = 0; i < telegramIdx; i++) navigateDown();
       selectCurrent();
-      expect(deps.onShowHistory).toHaveBeenCalled();
+      expect(deps.vscode.postMessage).toHaveBeenCalledWith({ type: "telegram_setup" });
+    });
+
+    it("selects a sendOnSelect server-side command and triggers send", () => {
+      (state as any).commandsLoaded = true;
+      (state as any).commands = [
+        { name: "gsd-auto", description: "Run GSD auto", source: "server" },
+      ];
+      // Force cache rebuild
+      show("gsd-auto");
+      expect(getFilteredItems().length).toBeGreaterThan(0);
+      // server-side commands without sendOnSelect just fill the input
+      selectCurrent();
+      expect(deps.promptInput.value).toContain("/gsd-auto");
+      expect(isVisible()).toBe(false);
     });
 
     it("selects /export and sends export_html message", () => {

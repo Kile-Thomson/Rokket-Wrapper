@@ -3,19 +3,23 @@ import { describe, it, expect } from "vitest";
 import { buildItems } from "../slash-menu";
 
 describe("slash-menu buildItems", () => {
-  it("includes 'gsd update' with sendOnSelect: true", () => {
+  it("includes 'new' item", () => {
     const items = buildItems();
-    const update = items.find((i) => i.name === "gsd update");
-    expect(update).toBeDefined();
-    expect(update!.description).toBe("Update GSD to the latest version");
-    expect(update!.sendOnSelect).toBe(true);
+    const item = items.find((i) => i.name === "new");
+    expect(item).toBeDefined();
+    expect(item!.description).toBe("Start a new conversation");
   });
 
-  it("includes 'gsd export' without sendOnSelect", () => {
+  it("includes 'export' item", () => {
     const items = buildItems();
-    const exp = items.find((i) => i.name === "gsd export");
-    expect(exp).toBeDefined();
-    expect(exp!.description).toBe("Export milestone report as HTML (via gsd-pi)");
-    expect(exp!.sendOnSelect).toBeUndefined();
+    const item = items.find((i) => i.name === "export");
+    expect(item).toBeDefined();
+    expect(item!.description).toBe("Export current conversation as HTML file");
+  });
+
+  it("includes 'config' item", () => {
+    const items = buildItems();
+    const item = items.find((i) => i.name === "config");
+    expect(item).toBeDefined();
   });
 });

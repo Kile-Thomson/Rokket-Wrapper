@@ -205,17 +205,7 @@ root.innerHTML = `
 
     <main class="gsd-messages" id="messagesContainer" role="log" aria-label="Chat messages" aria-live="polite" aria-relevant="additions">
       <div class="gsd-welcome" id="welcomeScreen">
-        <pre class="gsd-welcome-ascii" aria-label="RokketWrapper">
-██████   ██████  ██   ██ ██   ██ ███████ ████████
-██   ██ ██    ██ ██  ██  ██  ██  ██         ██
-██████  ██    ██ █████   █████   █████      ██
-██   ██ ██    ██ ██  ██  ██  ██  ██         ██
-██   ██  ██████  ██   ██ ██   ██ ███████    ██
-██     ██ ██████   █████  ██████  ██████  ███████ ██████
-██     ██ ██   ██ ██   ██ ██   ██ ██   ██ ██      ██   ██
-██  █  ██ ██████  ███████ ██████  ██████  █████   ██████
-██ ███ ██ ██   ██ ██   ██ ██     ██      ██      ██   ██
- ███ ███  ██   ██ ██   ██ ██     ██      ███████ ██   ██</pre>
+        <img class="gsd-welcome-logo" src="${(window as any).GSD_LOGO_URI ?? ''}" alt="Rokketek" />
         <div class="gsd-welcome-title">Rokket Wrapper</div>
         <div class="gsd-welcome-sub" id="welcomeProcess">Initializing...</div>
         <div class="gsd-welcome-model" id="welcomeModel"></div>

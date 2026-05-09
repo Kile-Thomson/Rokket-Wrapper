@@ -18,6 +18,9 @@ export function getWebviewHtml(extensionUri: vscode.Uri, webview: vscode.Webview
   const styleUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, "dist", "webview", "index.css")
   );
+  const logoUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionUri, "resources", "rokketek-logo.png")
+  );
   const nonce = getNonce();
 
   return `<!DOCTYPE html>
@@ -33,6 +36,7 @@ export function getWebviewHtml(extensionUri: vscode.Uri, webview: vscode.Webview
   <div id="root"></div>
   <script nonce="${nonce}">
     window.GSD_SESSION_ID = ${JSON.stringify(sessionId)};
+    window.GSD_LOGO_URI = ${JSON.stringify(logoUri.toString())};
   </script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

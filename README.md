@@ -4,6 +4,8 @@
 
 A VS Code extension that provides a rich GUI for Claude Code CLI and Codex CLI — with Telegram remote control, push-to-talk voice input, and a polished webview interface.
 
+<img width="1529" height="1385" alt="RokketWrapper" src="https://github.com/user-attachments/assets/bb94a03e-3db9-48c7-b2f8-12e3b355c7fc" />
+
 ## Features
 
 - **Claude Code & Codex support** — switchable provider backends, both using their native streaming JSON APIs

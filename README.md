@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/rokketek-logo.png" alt="Rokketek" width="320" />
+  <img src="resources/rokket-icon.png" alt="Rokketek" width="128" />
 </p>
 
 A VS Code extension that provides a rich GUI for Claude Code CLI and Codex CLI — with Telegram remote control, push-to-talk voice input, and a polished webview interface.

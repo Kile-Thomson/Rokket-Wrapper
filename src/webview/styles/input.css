@@ -209,6 +209,16 @@
   animation: gsd-voice-spin 1s linear infinite;
 }
 
+.gsd-voice-btn.gsd-voice-no-key {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.gsd-voice-btn.gsd-voice-no-key:hover {
+  color: inherit;
+  background: transparent;
+}
+
 @keyframes gsd-voice-pulse-btn {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }

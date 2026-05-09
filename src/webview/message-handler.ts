@@ -1405,6 +1405,14 @@ function handleMessage(event: MessageEvent): void {
       if (regionInput && vc.azureRegion) regionInput.value = vc.azureRegion;
       const keyInput = document.getElementById("voiceKeyInput") as HTMLInputElement | null;
       if (keyInput) keyInput.placeholder = "Paste API key...";
+      const voiceBtnEl = document.getElementById("voiceBtn");
+      if (voiceBtnEl) {
+        const activeHasKey = !!keyMap[vc.provider || "openai"];
+        voiceBtnEl.classList.toggle("gsd-voice-no-key", !activeHasKey);
+        voiceBtnEl.title = activeHasKey
+          ? "Record voice message"
+          : "Voice transcription requires an API key — open settings to add one";
+      }
       break;
     }
 

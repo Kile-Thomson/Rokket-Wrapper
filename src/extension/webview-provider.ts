@@ -871,6 +871,12 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         }
         break;
 
+      case "set_telegram_bot_token":
+        if (typeof msg.token === "string" && msg.token.trim()) {
+          await this.context.secrets.store("gsd.telegramBotToken", msg.token.trim());
+        }
+        break;
+
       case "launch_gsd": {
         const cwd = typeof msg.cwd === "string" ? msg.cwd : undefined;
         await this.launchProvider(webview, sessionId, cwd);

@@ -192,6 +192,17 @@ root.innerHTML = `
                 <input type="text" class="gsd-settings-voice-key-input" id="voiceAzureRegionInput" placeholder="e.g. eastus, australiaeast" title="The Azure datacenter region where your Speech Services resource is deployed. Find it in Azure Portal → your Speech resource → Keys and Endpoint." autocomplete="off" />
               </div>
             </div>
+            <div class="gsd-settings-divider"></div>
+            <div class="gsd-settings-section">
+              <span class="gsd-settings-label">Telegram</span>
+              <div class="gsd-settings-voice-key">
+                <div class="gsd-settings-voice-key-row">
+                  <input type="password" class="gsd-settings-voice-key-input" id="telegramTokenInput" placeholder="Paste bot token..." autocomplete="off" />
+                  <button class="gsd-settings-voice-key-save" id="telegramTokenSave">Save</button>
+                </div>
+                <span class="gsd-settings-voice-key-status" id="telegramTokenStatus"></span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -298,6 +309,9 @@ const voiceKeySave = document.getElementById("voiceKeySave")!;
 const voiceKeyStatus = document.getElementById("voiceKeyStatus")!;
 const voiceAzureRegionEl = document.getElementById("voiceAzureRegion")!;
 const voiceAzureRegionInput = document.getElementById("voiceAzureRegionInput") as HTMLInputElement;
+const telegramTokenInput = document.getElementById("telegramTokenInput") as HTMLInputElement;
+const telegramTokenSave = document.getElementById("telegramTokenSave")!;
+const telegramTokenStatus = document.getElementById("telegramTokenStatus")!;
 const voiceRecordingEl = document.getElementById("voiceRecording")!;
 const voiceRecordingTime = document.getElementById("voiceRecordingTime")!;
 const voiceCancelBtn = document.getElementById("voiceCancelBtn")!;
@@ -564,6 +578,7 @@ function cancelRecording(): void {
 voiceBtn.addEventListener("mousedown", (e) => {
   if (e.button !== 0) return;
   e.preventDefault();
+  if (voiceBtn.classList.contains("gsd-voice-no-key")) return;
   if (!voiceIsRecording) startRecording();
 });
 
@@ -610,6 +625,17 @@ voiceAzureRegionInput.addEventListener("change", () => {
   const val = voiceAzureRegionInput.value.trim();
   if (val) vscode.postMessage({ type: "set_voice_region", regionType: "azure", value: val } as WebviewToExtensionMessage);
 });
+
+telegramTokenSave.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const token = telegramTokenInput.value.trim();
+  if (!token) return;
+  vscode.postMessage({ type: "set_telegram_bot_token", token } as WebviewToExtensionMessage);
+  telegramTokenInput.value = "";
+  telegramTokenStatus.textContent = "Saved!";
+  setTimeout(() => { telegramTokenStatus.textContent = ""; }, 2000);
+});
+telegramTokenInput.addEventListener("click", (e) => e.stopPropagation());
 
 // ============================================================
 // Slash command menu — input listener
@@ -978,6 +1004,7 @@ if (restored.hadFiles) fileHandling.renderFileChips();
 
 vscode.postMessage({ type: "ready" });
 vscode.postMessage({ type: "launch_gsd" });
+vscode.postMessage({ type: "get_voice_config" });
 promptInput.focus();
 updateAllUI();
 

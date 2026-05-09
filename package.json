@@ -2,7 +2,7 @@
 	"name": "rokket-wrapper",
 	"displayName": "RokketWrapper — Claude Code GUI",
 	"description": "A premium VS Code GUI for Claude Code CLI — streaming chat UI, Telegram relay, voice input, and tool visualizations.",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"publisher": "rokketek",
 	"license": "MIT",
 	"repository": {
@@ -47,7 +47,10 @@
 			"properties": {
 				"rokketWrapper.agentProvider": {
 					"type": "string",
-					"enum": ["claude-code", "codex"],
+					"enum": [
+						"claude-code",
+						"codex"
+					],
 					"enumDescriptions": [
 						"Anthropic Claude Code CLI (claude)",
 						"OpenAI Codex CLI (@openai/codex)"

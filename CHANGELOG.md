@@ -9,6 +9,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- CI test suite now passes cleanly — all 924 tests green across 43 test files
+- Auto-progress widget DOM implementation restored (was a no-op stub)
+- Dashboard rendering implementation restored (was a stub)
+- Keyboard accessibility: `.gsd-settings-toggle` now has `:focus-visible` alongside `:hover`
+
 ### Added
 - `getKnownBinDirs()` — fallback PATH injection for common CLI install locations (Homebrew, nvm, fnm, Volta, npm-global, Yarn, Snap) on macOS, Linux, and Windows
 - nvm and fnm active-version detection via alias symlink resolution

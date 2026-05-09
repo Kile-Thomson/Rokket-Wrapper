@@ -255,8 +255,9 @@ describe("TelegramBridge", () => {
           message_thread_id: 200,
         },
       }]);
-      // CLIENT_MAX_RETRIES * CLIENT_RETRY_MS = 5 * 2000 = 10000ms
-      await vi.advanceTimersByTimeAsync(11000);
+      // Exponential backoff: attempts 0-4 with delays 2000, 4000, 8000, 16000, 16000 + random(0-500)
+      // Total max ~48500ms; advance 60000ms to ensure all retries complete
+      await vi.advanceTimersByTimeAsync(60000);
       await injectPromise;
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining("unavailable for s1"),

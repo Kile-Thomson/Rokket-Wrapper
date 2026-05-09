@@ -1153,7 +1153,8 @@
   transition: background 0.1s;
 }
 
-.gsd-settings-toggle:hover {
+.gsd-settings-toggle:hover,
+.gsd-settings-toggle:focus-visible {
   background: var(--gsd-color-surface-hover);
 }
 

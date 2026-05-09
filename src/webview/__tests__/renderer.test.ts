@@ -735,7 +735,7 @@ describe("renderer", () => {
       pruneOldEntries(messagesContainer);
 
       expect(warnSpy).toHaveBeenCalledWith(
-        `GSD: Pruned 3 oldest entries to maintain ${MAX_ENTRIES}-entry cap`
+        `RokketWrapper: Pruned 3 oldest entries to maintain ${MAX_ENTRIES}-entry cap`
       );
       warnSpy.mockRestore();
     });

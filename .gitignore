@@ -1,4 +1,5 @@
 node_modules
+*.vsix
 
 # ── GSD baseline (auto-generated) ──
 .gsd

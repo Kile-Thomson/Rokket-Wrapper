@@ -144,3 +144,6 @@ jobs:
             *.vsix
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to VS Code Marketplace
+        run: npx @vscode/vsce publish --no-dependencies --pat "${{ secrets.VSCE_PAT }}"

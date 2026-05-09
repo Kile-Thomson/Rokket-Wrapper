@@ -43,6 +43,12 @@ import {
 
 import { initStreaming as initStreamingModule } from "./render/streaming";
 
+const SAFE_IMAGE_MIME = /^image\/(png|jpeg|gif|webp|svg\+xml)$/;
+function safeSrc(mimeType: string, data: string): string {
+  const mime = SAFE_IMAGE_MIME.test(mimeType) ? mimeType : "image/png";
+  return `data:${mime};base64,${data.replace(/[^A-Za-z0-9+/=]/g, "")}`;
+}
+
 // ============================================================
 // Dependencies injected via init()
 // ============================================================
@@ -604,7 +610,7 @@ export function detectStaleEcho(turn: AssistantTurn): boolean {
   return true;
 }
 
-export function finalizeCurrentTurn(): void {
+export function finalizeCurrentTurn(usage?: import("./handlers/handler-state").MessageUsage): void {
   if (!state.currentTurn) return;
 
   stopElapsedTimer();
@@ -663,7 +669,7 @@ export function finalizeCurrentTurn(): void {
       currentTurnElement.classList.add("gsd-stale-echo");
       currentTurnElement.innerHTML = buildStaleEchoHtml(turn);
     } else {
-      finalizeStreamingDom(turn, currentTurnElement);
+      finalizeStreamingDom(turn, currentTurnElement, usage);
     }
   }
 
@@ -683,7 +689,7 @@ export function finalizeCurrentTurn(): void {
  * so the user doesn't see a "flash" where all content disappears and
  * reappears in one block at the end.
  */
-function finalizeStreamingDom(turn: AssistantTurn, container: HTMLElement): void {
+function finalizeStreamingDom(turn: AssistantTurn, container: HTMLElement, usage?: import("./handlers/handler-state").MessageUsage): void {
   // 1. Finalize text segments — replace incremental streaming markup with clean markdown
   for (let i = 0; i < turn.segments.length; i++) {
     const seg = turn.segments[i];
@@ -736,6 +742,22 @@ function finalizeStreamingDom(turn: AssistantTurn, container: HTMLElement): void
     container.insertAdjacentHTML("beforeend", actionsHtml);
   } else if (turn.timestamp) {
     container.insertAdjacentHTML("beforeend", buildTimestampHtml(turn.timestamp));
+  }
+
+  // Append per-turn usage footer if usage data is available
+  if (usage) {
+    const usageInfo = {
+      input: usage.input,
+      output: usage.output,
+      cacheRead: usage.cacheRead,
+      cacheWrite: usage.cacheWrite,
+      reasoningOutput: usage.reasoningOutput,
+      cost: usage.cost?.total,
+    };
+    const pillsHtml = buildUsagePills(usageInfo);
+    if (pillsHtml) {
+      container.insertAdjacentHTML("beforeend", pillsHtml);
+    }
   }
 }
 
@@ -820,7 +842,7 @@ function buildUserHtml(entry: ChatEntry): string {
   }
   if (entry.images?.length) {
     html += `<div class="gsd-user-images">${entry.images.map((img) =>
-      `<img src="data:${img.mimeType};base64,${img.data}" class="gsd-user-img" alt="Image" />`
+      `<img src="${safeSrc(img.mimeType, img.data)}" class="gsd-user-img" alt="Image" />`
     ).join("")}</div>`;
   }
   if (entry.text) {

@@ -3,6 +3,8 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { ClaudeCodeProvider } from "./provider/ClaudeCodeProvider";
+import { CodexProvider } from "./provider/CodexProvider";
+import type { IAgentProvider } from "./provider/IAgentProvider";
 
 import type { ExtensionToWebviewMessage } from "../shared/types";
 import { TopicManager, type TopicManagerLogger } from "./telegram/topicManager";
@@ -27,7 +29,7 @@ export interface StatusBarUpdate {
 }
 
 interface SessionState {
-  provider: ClaudeCodeProvider | null;
+  provider: IAgentProvider | null;
   webview: vscode.Webview | null;
   panel: vscode.WebviewPanel | null;
   isStreaming: boolean;
@@ -35,6 +37,7 @@ interface SessionState {
   messageHandlerDisposable: vscode.Disposable | null;
   launchPromise: Promise<void> | null;
   selectedModel: string | null;
+  selectedBackend: "claude-code" | "codex";
   selectedEffort: string | null;
   activeModel: string | null;
   conversationId: string | null;
@@ -53,6 +56,7 @@ function createSessionState(): SessionState {
     messageHandlerDisposable: null,
     launchPromise: null,
     selectedModel: null,
+    selectedBackend: "claude-code",
     selectedEffort: null,
     activeModel: null,
     conversationId: null,
@@ -69,56 +73,70 @@ function cleanupSessionState(session: SessionState): void {
   session.messageHandlerDisposable = null;
 }
 
-/** Selectable models shown in the picker — aliases resolve to latest, specific IDs pin a version. */
-const SELECTABLE_MODELS: string[] = [
-  "claude-opus-4-7",
-  "claude-opus-4-6",
-  "claude-sonnet-4-6",
-  "claude-haiku-4-5-20251001",
+interface SelectableModel {
+  id: string;
+  name: string;
+  provider: "Anthropic" | "OpenAI";
+  agentBackend: "claude-code" | "codex";
+  reasoning: boolean;
+  contextWindow: number;
+}
+
+const ANTHROPIC_MODELS: SelectableModel[] = [
+  { id: "claude-opus-4-7",          name: "Claude Opus 4.7",  provider: "Anthropic", agentBackend: "claude-code", reasoning: true,  contextWindow: 1_000_000 },
+  { id: "claude-opus-4-6",          name: "Claude Opus 4.6",  provider: "Anthropic", agentBackend: "claude-code", reasoning: true,  contextWindow: 1_000_000 },
+  { id: "claude-sonnet-4-6",        name: "Claude Sonnet 4.6",provider: "Anthropic", agentBackend: "claude-code", reasoning: true,  contextWindow: 200_000   },
+  { id: "claude-haiku-4-5-20251001",name: "Claude Haiku 4.5", provider: "Anthropic", agentBackend: "claude-code", reasoning: false, contextWindow: 200_000   },
 ];
 
-const CONTEXT_WINDOWS: Record<string, number> = {
-  "claude-opus-4-7": 1_000_000,
-  "claude-opus-4-6": 1_000_000,
-  "claude-sonnet-4-6": 200_000,
-  "claude-haiku-4-5-20251001": 200_000,
-};
+interface CodexModelsCacheEntry {
+  slug: string;
+  display_name: string;
+  default_reasoning_level?: string;
+  supported_reasoning_levels?: unknown[];
+  visibility?: string;
+}
 
-function contextWindowFor(id: string): number {
-  if (CONTEXT_WINDOWS[id]) return CONTEXT_WINDOWS[id];
-  const lower = id.toLowerCase();
-  for (const [key, val] of Object.entries(CONTEXT_WINDOWS)) {
-    if (lower.includes(key)) return val;
+async function loadCodexModels(): Promise<SelectableModel[]> {
+  try {
+    const cachePath = path.join(os.homedir(), ".codex", "models_cache.json");
+    const raw = await fs.promises.readFile(cachePath, "utf-8");
+    const cache = JSON.parse(raw) as { models: CodexModelsCacheEntry[] };
+    return cache.models
+      .filter(m => m.visibility !== "hide")
+      .map(m => ({
+        id: m.slug,
+        name: m.display_name,
+        provider: "OpenAI" as const,
+        agentBackend: "codex" as const,
+        reasoning: Array.isArray(m.supported_reasoning_levels) && m.supported_reasoning_levels.length > 1,
+        contextWindow: 200_000,
+      }));
+  } catch {
+    // Codex not installed or cache not yet populated — return empty list
+    return [];
   }
-  return 200_000;
 }
 
-function isReasoningModel(id: string): boolean {
-  const lower = id.toLowerCase();
-  return lower.includes("opus") || lower.includes("sonnet");
+async function getSelectableModels(): Promise<SelectableModel[]> {
+  return [...ANTHROPIC_MODELS, ...(await loadCodexModels())];
 }
 
-/**
- * Parse a model ID (e.g. "claude-opus-4-7", "opus", "claude-haiku-4-5-20251001")
- * into a human-readable display name.
- */
-function formatModelName(id: string): string {
-  const match = id.toLowerCase().match(/^claude-(\w+)-(\d+)-(\d+)(?:-.*)?$/);
-  if (match) {
-    const family = match[1].charAt(0).toUpperCase() + match[1].slice(1);
-    return `Claude ${family} ${match[2]}.${match[3]}`;
+function resolveModelInfo(id: string): SelectableModel {
+  const found = ANTHROPIC_MODELS.find(m => m.id === id);
+  if (found) return found;
+  // Fallback for unknown IDs
+  const claudeMatch = id.toLowerCase().match(/^claude-(\w+)-(\d+)-(\d+)(?:-.*)?$/);
+  if (claudeMatch) {
+    const family = claudeMatch[1].charAt(0).toUpperCase() + claudeMatch[1].slice(1);
+    return { id, name: `Claude ${family} ${claudeMatch[2]}.${claudeMatch[3]}`, provider: "Anthropic", agentBackend: "claude-code", reasoning: true, contextWindow: 200_000 };
   }
-  return id;
+  // Unknown non-Claude ID — assume it's a Codex model
+  return { id, name: id, provider: "OpenAI", agentBackend: "codex", reasoning: false, contextWindow: 200_000 };
 }
 
-function resolveModelInfo(id: string) {
-  return {
-    id,
-    name: formatModelName(id),
-    provider: "Anthropic",
-    reasoning: isReasoningModel(id),
-    contextWindow: contextWindowFor(id),
-  };
+function agentBackendForModel(modelId: string): "claude-code" | "codex" {
+  return resolveModelInfo(modelId).agentBackend;
 }
 
 const THINKING_LEVELS = ["off", "low", "medium", "high", "xhigh"] as const;
@@ -283,20 +301,25 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
 
   private async handleVoiceTranscription(audioBuffer: Buffer, webview: vscode.Webview): Promise<void> {
     try {
+      this.output.appendLine(`[voice] Buffer received: ${audioBuffer.length} bytes`);
       if (audioBuffer.length < 1000) {
+        this.output.appendLine(`[voice] Recording too short (${audioBuffer.length} bytes) — dropping`);
         this.postToWebview(webview, { type: "voice_error", message: "Recording too short — no audio captured." } as any);
         return;
       }
       const config = vscode.workspace.getConfiguration("rokketWrapper");
       const provider = getVoiceProvider(config);
+      this.output.appendLine(`[voice] Transcribing with provider: ${provider}`);
       const apiKey = await getTranscriptionApiKey(this.context.secrets, provider);
       if (!apiKey) {
+        this.output.appendLine(`[voice] No API key set for provider: ${provider}`);
         this.postToWebview(webview, { type: "voice_error", message: `No API key set for ${provider}. Open voice settings to configure.` } as any);
         return;
       }
       const text = await transcribeWithProvider(
         { provider, apiKey, azureRegion: getAzureRegion(config) },
         audioBuffer,
+        "voice.wav",
       );
       if (!text.trim()) {
         this.postToWebview(webview, { type: "voice_error", message: "No speech detected. Try again." } as any);
@@ -422,7 +445,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     if (this.sidebarSessionId && existingProvider?.isRunning()) {
       sessionId = this.sidebarSessionId;
       this.getSession(sessionId).webview = webviewView.webview;
-      this._bindProviderListeners(existingProvider, webviewView.webview, sessionId);
+      this._bindProviderListeners(existingProvider, webviewView.webview, sessionId, this.getSession(sessionId).selectedBackend);
       this.output.appendLine(`[${sessionId}] Sidebar re-resolved — reusing existing session`);
     } else {
       if (this.sidebarSessionId) this.cleanupSession(this.sidebarSessionId);
@@ -489,7 +512,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     return promise;
   }
 
-  private _bindProviderListeners(provider: ClaudeCodeProvider, webview: vscode.Webview, sessionId: string): void {
+  private _bindProviderListeners(provider: IAgentProvider, webview: vscode.Webview, sessionId: string, agentBackend: "claude-code" | "codex" = "claude-code"): void {
     // Remove any existing listeners to avoid duplicates on re-resolve
     provider.removeAllListeners();
 
@@ -559,7 +582,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       this.bridge?.handleToolEnd(result.id, result.isError, 0);
     });
 
-    provider.on("agent_end", (stats: { durationMs: number; costUsd?: number; usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }; contextWindow?: number }) => {
+    provider.on("agent_end", (stats: { durationMs: number; costUsd?: number; usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; reasoningOutput?: number }; contextWindow?: number }) => {
       const session = this.getSession(sessionId);
       const wv = session.webview ?? webview;
       session.isStreaming = false;
@@ -586,6 +609,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
             output: stats.usage?.output ?? 0,
             cacheRead: stats.usage?.cacheRead ?? 0,
             cacheWrite: stats.usage?.cacheWrite ?? 0,
+            reasoningOutput: stats.usage?.reasoningOutput,
           },
         } as any);
       }
@@ -601,7 +625,10 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
           timestamp: Date.now(),
         });
         session.currentAssistantText = "";
-        this.persistConversation(session).catch(() => {});
+        this.persistConversation(session).catch((err: unknown) => {
+          console.error("[rokket] Failed to persist conversation:", err);
+          void vscode.window.showWarningMessage("RokketWrapper: Failed to save conversation history.");
+        });
       }
     });
 
@@ -610,11 +637,13 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       this.output.appendLine(`[${sessionId}] Provider error: ${err.message}`);
       this.getSession(sessionId).isStreaming = false;
       this.emitStatus({ isStreaming: false });
+      const providerName = agentBackend === "codex" ? "Codex" : "Claude Code";
+      const providerCmd = agentBackend === "codex" ? "codex" : "claude";
       this.postToWebview(wv, {
         type: "process_exit",
         code: null,
         signal: null,
-        detail: `Claude Code error: ${err.message}. Make sure 'claude' is installed and in your PATH.`,
+        detail: `${providerName} error: ${err.message}. Make sure '${providerCmd}' is installed and in your PATH.`,
       });
       this.postToWebview(wv, { type: "process_status", status: "crashed" } as ExtensionToWebviewMessage);
     });
@@ -629,15 +658,38 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     this.postToWebview(webview, { type: "process_status", status: "starting" } as ExtensionToWebviewMessage);
 
     const session = this.getSession(sessionId);
-    const provider = new ClaudeCodeProvider(claudePath);
-    provider.model = session.selectedModel;
-    provider.effort = session.selectedEffort;
-    this._bindProviderListeners(provider, webview, sessionId);
+    // Re-derive backend from model at launch time — session.selectedBackend may lag behind
+    // if set_model hasn't arrived yet when a prompt auto-triggers launch.
+    // Fall back to globalState so we never launch the wrong provider on cold start.
+    const resolvedModel = session.selectedModel
+      ?? this.context.globalState.get<string>(RokketWrapperWebviewProvider.LAST_MODEL_KEY)
+      ?? null;
+    if (resolvedModel && !session.selectedModel) {
+      session.selectedModel = resolvedModel;
+    }
+    const agentBackend = resolvedModel
+      ? agentBackendForModel(resolvedModel)
+      : session.selectedBackend;
+    session.selectedBackend = agentBackend;
+    let provider: IAgentProvider;
+    if (agentBackend === "codex") {
+      const codexBase = config.get<string>("codexPath", "") || (process.platform === "win32" ? "codex.cmd" : "codex");
+      const cp = new CodexProvider(codexBase);
+      cp.model = resolvedModel;
+      provider = cp;
+    } else {
+      const cp = new ClaudeCodeProvider(claudePath);
+      cp.model = resolvedModel;
+      cp.effort = session.selectedEffort;
+      provider = cp;
+    }
+    this._bindProviderListeners(provider, webview, sessionId, agentBackend);
     session.provider = provider;
 
+    this.output.appendLine(`[${sessionId}] _doLaunchProvider: model=${resolvedModel ?? "null"} resolvedBackend=${agentBackend}`);
     try {
       await provider.start(workingDir);
-      this.output.appendLine(`[${sessionId}] ClaudeCodeProvider started in ${workingDir}`);
+      this.output.appendLine(`[${sessionId}] ${agentBackend} provider started in ${workingDir}`);
       this.postToWebview(webview, { type: "process_status", status: "running" } as ExtensionToWebviewMessage);
       this.postToWebview(webview, {
         type: "state",
@@ -645,11 +697,13 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       } as any);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
+      const providerName = agentBackend === "codex" ? "Codex" : "Claude Code";
+      const providerCmd = agentBackend === "codex" ? "codex" : "claude";
       this.postToWebview(webview, {
         type: "process_exit",
         code: null,
         signal: null,
-        detail: `Failed to start Claude Code: ${msg}. Make sure 'claude' is installed and in your PATH.`,
+        detail: `Failed to start ${providerName}: ${msg}. Make sure '${providerCmd}' is installed and in your PATH.`,
       });
       this.postToWebview(webview, { type: "process_status", status: "crashed" } as ExtensionToWebviewMessage);
     }
@@ -680,11 +734,20 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
           theme: this.getTheme(),
         } as ExtensionToWebviewMessage);
         const readySession = this.getSession(sessionId);
-        const currentModel = readySession.selectedModel
+        const availableModels = await getSelectableModels();
+        let persistedModel = readySession.selectedModel
           ?? this.context.globalState.get<string>(RokketWrapperWebviewProvider.LAST_MODEL_KEY) ?? null;
+        // If the persisted model is a known Codex model slug that no longer exists in the cache, clear it.
+        if (persistedModel && agentBackendForModel(persistedModel) === "codex" &&
+            !availableModels.find(m => m.id === persistedModel)) {
+          persistedModel = availableModels.find(m => m.agentBackend === "codex")?.id ?? null;
+          this.context.globalState.update(RokketWrapperWebviewProvider.LAST_MODEL_KEY, persistedModel);
+        }
+        const currentModel = persistedModel;
         const persistedThinking = this.context.globalState.get<string>(RokketWrapperWebviewProvider.LAST_THINKING_KEY) ?? null;
         if (currentModel && !readySession.selectedModel) {
           readySession.selectedModel = currentModel;
+          readySession.selectedBackend = agentBackendForModel(currentModel);
           if (readySession.provider) readySession.provider.model = currentModel;
         }
         if (persistedThinking && !readySession.selectedEffort) {
@@ -775,10 +838,12 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         break;
 
       case "start_recording":
+      case "voice_start_recording":
         await this.handleStartRecording(webview);
         break;
 
       case "stop_recording":
+      case "voice_stop_recording":
         await this.handleStopRecording(webview);
         break;
 
@@ -813,19 +878,31 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       }
 
       case "get_available_models": {
-        this.postToWebview(webview, { type: "available_models", models: SELECTABLE_MODELS.map(id => resolveModelInfo(id)) } as any);
+        this.postToWebview(webview, { type: "available_models", models: await getSelectableModels() } as any);
         break;
       }
 
       case "set_model": {
         const modelId = typeof msg.modelId === "string" ? msg.modelId : null;
         const session = this.getSession(sessionId);
+        const newBackend = modelId ? agentBackendForModel(modelId) : "claude-code";
+        const backendChanged = newBackend !== session.selectedBackend;
         session.selectedModel = modelId;
+        session.selectedBackend = newBackend;
         if (session.provider) {
-          session.provider.model = modelId;
+          if (backendChanged) {
+            // Provider type changed — stop existing provider; next prompt will create a new one.
+            // Also clear its model so if ensureProcess fires on the stale object it won't spawn
+            // with a mismatched model (handles the resolveShellEnv async race).
+            session.provider.model = null;
+            session.provider.stop().catch(() => { /* best effort */ });
+            session.provider = null;
+          } else {
+            session.provider.model = modelId;
+          }
         }
         this.context.globalState.update(RokketWrapperWebviewProvider.LAST_MODEL_KEY, modelId);
-        this.output.appendLine(`[${sessionId}] Model set to: ${modelId}`);
+        this.output.appendLine(`[${sessionId}] Model set to: ${modelId} (backend: ${newBackend})`);
         if (modelId) {
           this.postToWebview(webview, {
             type: "state",
@@ -971,6 +1048,16 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       case "cleanup_temp":
         this.cleanupTempFiles();
         break;
+
+      case "open_url": {
+        const rawUrl = (msg as { url?: string }).url ?? "";
+        let parsed: URL;
+        try { parsed = new URL(rawUrl); } catch { break; }
+        if (["https:", "http:", "mailto:"].includes(parsed.protocol)) {
+          void vscode.env.openExternal(vscode.Uri.parse(rawUrl));
+        }
+        break;
+      }
 
       default:
         this.output.appendLine(`[${sessionId}] Unknown webview message type: ${msg.type}`);

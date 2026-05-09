@@ -57,7 +57,7 @@ let handleModelRouted: (oldModel: any, newModel: any) => void;
 let autoResize: () => void;
 
 // Per-turn usage from the most recent message_end or cost_update.
-let _lastMessageUsage: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number } } | null = null;
+let _lastMessageUsage: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; reasoningOutput?: number; cost?: { total?: number } } | null = null;
 // Whether we've received cost_update events this session. When true, message_end
 // token accumulation is skipped to avoid double-counting (cost_update is authoritative).
 let hasCostUpdateSource = false;
@@ -1453,6 +1453,7 @@ function handleMessage(event: MessageEvent): void {
         output: turnOutput,
         cacheRead: turnCacheRead,
         cacheWrite: turnCacheWrite,
+        reasoningOutput: (tok.reasoningOutput as number | undefined),
         cost: typeof turnCost === "number" ? { total: turnCost } : undefined,
       };
 

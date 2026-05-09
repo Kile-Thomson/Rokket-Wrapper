@@ -95,11 +95,11 @@ export class ClaudeCodeProvider extends IAgentProvider {
     super();
   }
 
-  get model(): string | null { return this._model; }
-  set model(value: string | null) { this._model = value; }
+  override get model(): string | null { return this._model; }
+  override set model(value: string | null) { this._model = value; }
 
-  get effort(): string | null { return this._effort; }
-  set effort(value: string | null) { this._effort = value; }
+  override get effort(): string | null { return this._effort; }
+  override set effort(value: string | null) { this._effort = value; }
 
   async start(workingDir: string): Promise<void> {
     this.workingDir = workingDir;

@@ -5,6 +5,7 @@ export interface UsageInfo {
   output?: number;
   cacheRead?: number;
   cacheWrite?: number;
+  reasoningOutput?: number;
 }
 
 export interface AgentEndStats {
@@ -33,4 +34,12 @@ export abstract class IAgentProvider extends EventEmitter {
   abstract stop(): Promise<void>;
   abstract isRunning(): boolean;
   resetSession(): void {}
+
+  /** Optional model override — providers that support model selection should override. */
+  get model(): string | null { return null; }
+  set model(_value: string | null) { /* no-op unless overridden */ }
+
+  /** Optional reasoning effort level — Claude Code specific; no-op on other providers. */
+  get effort(): string | null { return null; }
+  set effort(_value: string | null) { /* no-op unless overridden */ }
 }

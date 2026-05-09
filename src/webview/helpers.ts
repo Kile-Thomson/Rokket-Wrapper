@@ -346,6 +346,7 @@ export interface UsageInfo {
   output?: number;
   cacheRead?: number;
   cacheWrite?: number;
+  reasoningOutput?: number;
   cost?: number;
   totalTokens?: number;
   toolUses?: number;
@@ -361,6 +362,7 @@ export function buildUsagePills(usage: UsageInfo | null | undefined, model?: str
   if (usage.output) pills.push(`↓${formatTokenCount(usage.output)}`);
   if (usage.cacheRead) pills.push(`R${formatTokenCount(usage.cacheRead)}`);
   if (usage.cacheWrite) pills.push(`W${formatTokenCount(usage.cacheWrite)}`);
+  if (usage.reasoningOutput) pills.push(`𝑅${formatTokenCount(usage.reasoningOutput)}`);
   if (usage.toolUses != null) pills.push(`${usage.toolUses} tool${usage.toolUses !== 1 ? "s" : ""}`);
   if (usage.durationMs) pills.push(formatDuration(usage.durationMs));
   if (usage.cost) pills.push(`$${(Number(usage.cost) || 0).toFixed(4)}`);

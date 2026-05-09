@@ -8,6 +8,7 @@ import * as uiDialogs from "../ui-dialogs";
 import {
   getDeps,
   setLastMessageUsage,
+  getLastMessageUsage,
   getHasCostUpdateSource,
   removeSteerNotes,
   resolveContextWindow,
@@ -60,7 +61,7 @@ export function handleAgentEnd(_msg: Msg<'agent_end'>): void {
     uiDialogs.expireAllPending("Agent finished");
   }
   removeSteerNotes();
-  renderer.finalizeCurrentTurn();
+  renderer.finalizeCurrentTurn(getLastMessageUsage() ?? undefined);
   const { updateInputUI, updateOverlayIndicators, vscode } = getDeps();
   updateInputUI();
   updateOverlayIndicators();

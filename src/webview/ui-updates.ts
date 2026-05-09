@@ -129,7 +129,7 @@ export function updateHeaderUI(): void {
     if (pct > 90) contextBadge.classList.add("crit");
     else if (pct > 70) contextBadge.classList.add("warn");
     const spent = stats.tokens
-      ? (stats.tokens.input || 0) + (stats.tokens.output || 0) + (stats.tokens.cacheRead || 0) + (stats.tokens.cacheWrite || 0)
+      ? (stats.tokens.input || 0) + (stats.tokens.output || 0) + (stats.tokens.cacheRead || 0) + (stats.tokens.cacheWrite || 0) + (stats.tokens.reasoningOutput || 0)
       : 0;
     contextBadge.title =
       "Size of the NEXT prompt relative to the context window.\n" +

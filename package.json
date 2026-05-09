@@ -45,10 +45,25 @@
 		"configuration": {
 			"title": "RokketWrapper",
 			"properties": {
+				"rokketWrapper.agentProvider": {
+					"type": "string",
+					"enum": ["claude-code", "codex"],
+					"enumDescriptions": [
+						"Anthropic Claude Code CLI (claude)",
+						"OpenAI Codex CLI (@openai/codex)"
+					],
+					"default": "claude-code",
+					"description": "Which AI agent backend to use."
+				},
 				"rokketWrapper.claudeCodePath": {
 					"type": "string",
 					"default": "",
 					"description": "Path to the claude executable. Leave empty to auto-discover from PATH."
+				},
+				"rokketWrapper.codexPath": {
+					"type": "string",
+					"default": "",
+					"description": "Path to the codex executable. Leave empty to auto-discover from PATH."
 				},
 				"rokketWrapper.useCtrlEnterToSend": {
 					"type": "boolean",

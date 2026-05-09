@@ -48,10 +48,18 @@ export class AudioRecorder {
     const outputPath = this.outputPath;
     this.outputPath = null;
 
-    // Wait briefly for file to be flushed
-    await new Promise((r) => setTimeout(r, 200));
-
-    if (!fs.existsSync(outputPath)) {
+    // Poll for file to be flushed (up to 1s)
+    let fileReady = false;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try {
+        await fs.promises.access(outputPath);
+        fileReady = true;
+        break;
+      } catch {
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+    if (!fileReady) {
       throw new Error("Recording file was not created");
     }
 

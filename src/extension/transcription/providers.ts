@@ -68,7 +68,7 @@ async function transcribeAzure(apiKey: string, region: string, audioBuffer: Buff
     method: "POST",
     headers: {
       "Ocp-Apim-Subscription-Key": apiKey,
-      "Content-Type": "audio/ogg; codecs=opus",
+      "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
       Accept: "application/json",
     },
     body: audioBuffer,

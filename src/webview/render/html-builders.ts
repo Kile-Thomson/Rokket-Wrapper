@@ -29,6 +29,12 @@ import {
 
 import { MAX_OUTPUT_LEN } from "../../shared/constants";
 
+const SAFE_IMAGE_MIME = /^image\/(png|jpeg|gif|webp|svg\+xml)$/;
+function safeSrc(mimeType: string, data: string): string {
+  const mime = SAFE_IMAGE_MIME.test(mimeType) ? mimeType : "image/png";
+  return `data:${mime};base64,${data.replace(/[^A-Za-z0-9+/=]/g, "")}`;
+}
+
 export function createEntryElement(entry: ChatEntry): HTMLElement {
   const el = document.createElement("div");
   el.className = `gsd-entry gsd-entry-${entry.type}`;
@@ -93,7 +99,7 @@ function buildUserHtml(entry: ChatEntry): string {
   }
   if (entry.images?.length) {
     html += `<div class="gsd-user-images">${entry.images.map((img) =>
-      `<img src="data:${img.mimeType};base64,${img.data}" class="gsd-user-img" alt="Image" />`
+      `<img src="${safeSrc(img.mimeType, img.data)}" class="gsd-user-img" alt="Image" />`
     ).join("")}</div>`;
   }
   if (entry.text) {

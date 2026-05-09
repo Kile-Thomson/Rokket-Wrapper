@@ -7,6 +7,12 @@ import { state } from "./state";
 import { persistAttachments } from "./persist-attachments";
 import { MAX_IMAGE_DIMENSION } from "../shared/constants";
 
+const SAFE_IMAGE_MIME = /^image\/(png|jpeg|gif|webp|svg\+xml)$/;
+function safeSrc(mimeType: string, data: string): string {
+  const mime = SAFE_IMAGE_MIME.test(mimeType) ? mimeType : "image/png";
+  return `data:${mime};base64,${data.replace(/[^A-Za-z0-9+/=]/g, "")}`;
+}
+
 // ============================================================
 // Dependencies — set via init()
 // ============================================================
@@ -290,7 +296,7 @@ export function renderImagePreviews(): void {
   imagePreview.classList.remove('gsd-hidden');
   imagePreview.innerHTML = state.images.map((img, i) => `
     <div class="gsd-image-thumb">
-      <img src="data:${img.mimeType};base64,${img.data}" alt="Attached" />
+      <img src="${safeSrc(img.mimeType, img.data)}" alt="Attached" />
       <button class="gsd-image-remove" data-idx="${i}" aria-label="Remove attached image">×</button>
     </div>
   `).join("");

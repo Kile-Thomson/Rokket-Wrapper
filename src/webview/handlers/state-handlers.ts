@@ -254,6 +254,7 @@ export function handleCostUpdate(msg: Msg<'cost_update'>): void {
   const totalOutput = tok.output || 0;
   const totalCacheRead = tok.cacheRead || 0;
   const totalCacheWrite = tok.cacheWrite || 0;
+  const turnReasoningOutput = tok.reasoningOutput;
 
   const costValue = cu.cumulativeCost;
 
@@ -284,6 +285,7 @@ export function handleCostUpdate(msg: Msg<'cost_update'>): void {
     output: turnOutput,
     cacheRead: turnCacheRead,
     cacheWrite: turnCacheWrite,
+    reasoningOutput: turnReasoningOutput,
     cost: typeof turnCost === "number" ? { total: turnCost } : undefined,
   });
 

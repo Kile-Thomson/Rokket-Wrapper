@@ -44,6 +44,7 @@ export type MessageUsage = {
   output?: number;
   cacheRead?: number;
   cacheWrite?: number;
+  reasoningOutput?: number;
   cost?: { total?: number };
 } | null;
 

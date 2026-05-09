@@ -341,7 +341,8 @@ export class TelegramBridge {
         const s = this.resolveSession(sessionId);
         if (s?.client) return s;
         this.logger.info(`[telegram-bridge] Waiting for client ${sessionId} (attempt ${attempt + 1}/${this.CLIENT_MAX_RETRIES})`);
-        await new Promise((r) => setTimeout(r, this.CLIENT_RETRY_MS));
+        const delay = Math.min(2000 * Math.pow(2, attempt), 16000) + Math.floor(Math.random() * 500);
+        await new Promise((r) => setTimeout(r, delay));
       }
       return undefined;
     };
@@ -373,7 +374,12 @@ export class TelegramBridge {
         this.logger.info(`[telegram-bridge] Session ${sessionId} is streaming — aborting first`);
         try {
           await current.client.abort();
-        } catch { /* may not be streaming */ }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!msg.includes("abort") && !msg.includes("cancel") && !msg.includes("stream")) {
+            console.debug("[telegram] unexpected error in streaming path:", err);
+          }
+        }
         await new Promise((r) => setTimeout(r, 800));
         current = await waitForClient();
         if (!current?.client) {

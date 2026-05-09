@@ -1514,7 +1514,7 @@
 .gsd-viz-progress-fill {
   height: 100%;
   border-radius: var(--gsd-radius-sm);
-  transition: width 0.3s ease;
+  transition: transform 0.3s ease; /* GPU-composited: JS should use transform: scaleX() + transform-origin: left instead of width */
   background: var(--gsd-color-accent);
 }
 

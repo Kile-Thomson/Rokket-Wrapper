@@ -25,10 +25,15 @@ export interface ConversationRecord {
 }
 
 export class ConversationHistory {
+  private _cache: ConversationRecord[] | null = null;
+
   constructor(private globalState: vscode.Memento) {}
 
   private getAll(): ConversationRecord[] {
-    return this.globalState.get<ConversationRecord[]>(HISTORY_KEY) ?? [];
+    if (this._cache) return this._cache;
+    const raw = this.globalState.get<ConversationRecord[]>(HISTORY_KEY) ?? [];
+    this._cache = raw;
+    return this._cache;
   }
 
   private async saveAll(records: ConversationRecord[]): Promise<void> {
@@ -54,6 +59,7 @@ export class ConversationHistory {
       all.length = MAX_HISTORY;
     }
 
+    this._cache = null;
     await this.saveAll(all);
   }
 
@@ -75,6 +81,7 @@ export class ConversationHistory {
 
   async delete(id: string): Promise<void> {
     const all = this.getAll().filter(r => r.id !== id);
+    this._cache = null;
     await this.saveAll(all);
   }
 
@@ -83,6 +90,7 @@ export class ConversationHistory {
     const record = all.find(r => r.id === id);
     if (record) {
       record.title = name;
+      this._cache = null;
       await this.saveAll(all);
     }
   }

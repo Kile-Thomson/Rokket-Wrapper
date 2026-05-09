@@ -132,7 +132,7 @@ export type ExtensionToWebviewMessage =
   | { type: "extension_error"; extensionPath: string; event: string; error: string }
   | { type: "steer_persisted" }
 
-  | { type: "cost_update"; runId: string; turnCost: number; cumulativeCost: number; tokens: { input: number; output: number; cacheRead: number; cacheWrite: number } }
+  | { type: "cost_update"; runId: string; turnCost: number; cumulativeCost: number; tokens: { input: number; output: number; cacheRead: number; cacheWrite: number; reasoningOutput?: number } }
   | { type: "execution_complete"; runId: string; status: string; stats?: unknown }
   | { type: "terminal_output"; data: string }
   | { type: "telegram_user_message"; text: string; images?: ImageAttachment[] }
@@ -240,6 +240,7 @@ export interface SessionStats {
     cacheRead: number;
     cacheWrite: number;
     total: number;
+    reasoningOutput?: number;
   };
   cost?: number;
 
@@ -360,54 +361,6 @@ export interface RpcModelsResult {
 /** RPC response payload for `cycle_thinking_level`. */
 export interface RpcThinkingResult {
   level?: ThinkingLevel;
-}
-
-/**
- * Raw RPC response from `get_state` — the unstructured state payload from gsd-pi.
- *
- * This is the "loose" shape before conversion. Use `toGsdState()` to convert it
- * into the structured `GsdState` the webview expects. The index signature allows
- * for additional fields that gsd-pi may add without requiring a types.ts update.
- */
-export interface RpcStateResult {
-  model?: ModelInfo;
-  thinkingLevel?: ThinkingLevel;
-  isStreaming?: boolean;
-  isCompacting?: boolean;
-  autoCompactionEnabled?: boolean;
-  /** Whether extension loading has completed — commands may be incomplete until true. (gsd-pi 2.44+) */
-  extensionsReady?: boolean;
-  /** Whether an auto-retry is currently in progress. (gsd-pi 2.44+) */
-  retryInProgress?: boolean;
-  /** Current retry attempt number (0-based). (gsd-pi 2.44+) */
-  retryAttempt?: number;
-  /** Whether auto-retry is enabled. (gsd-pi 2.44+) */
-  autoRetryEnabled?: boolean;
-  cwd?: string;
-  [key: string]: unknown;
-}
-
-/** Convert loose RPC state to the structured GsdState the webview expects */
-export function toGsdState(rpc: RpcStateResult): GsdState {
-  return {
-    model: rpc.model || null,
-    thinkingLevel: (rpc.thinkingLevel || "off") as ThinkingLevel,
-    isStreaming: rpc.isStreaming || false,
-    isCompacting: rpc.isCompacting || false,
-    sessionFile: (rpc.sessionFile as string) || null,
-    sessionId: (rpc.sessionId as string) || null,
-    sessionName: rpc.sessionName as string | undefined,
-    messageCount: (rpc.messageCount as number) || 0,
-    pendingMessageCount: rpc.pendingMessageCount as number | undefined,
-    autoCompactionEnabled: rpc.autoCompactionEnabled || false,
-    steeringMode: rpc.steeringMode as GsdState["steeringMode"],
-    followUpMode: rpc.followUpMode as GsdState["followUpMode"],
-    cwd: rpc.cwd,
-    extensionsReady: rpc.extensionsReady as boolean | undefined,
-    retryInProgress: rpc.retryInProgress as boolean | undefined,
-    retryAttempt: rpc.retryAttempt as number | undefined,
-    autoRetryEnabled: rpc.autoRetryEnabled as boolean | undefined,
-  };
 }
 
 // --- Dashboard Data (parsed from .gsd/ project files) ---

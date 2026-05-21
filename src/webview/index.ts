@@ -323,6 +323,14 @@ const welcomeActions = document.getElementById("welcomeActions")!;
 
 // Header badges
 const headerVersion = document.getElementById("headerVersion")!;
+const initialExtensionVersion =
+  typeof (window as any).GSD_EXTENSION_VERSION === "string" && (window as any).GSD_EXTENSION_VERSION
+    ? (window as any).GSD_EXTENSION_VERSION
+    : "";
+if (initialExtensionVersion) {
+  state.extensionVersion = initialExtensionVersion;
+  headerVersion.textContent = `v${initialExtensionVersion}`;
+}
 const modelBadge = document.getElementById("modelBadge")!;
 const thinkingBadge = document.getElementById("thinkingBadge")!;
 const headerSep1 = document.getElementById("headerSep1")!;

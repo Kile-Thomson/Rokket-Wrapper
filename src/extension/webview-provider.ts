@@ -17,6 +17,7 @@ import { getTranscriptionApiKey, setTranscriptionApiKey, getVoiceProvider, getAz
 import { AudioRecorder } from "./transcription/recorder";
 import { getWebviewHtml } from "./html-generator";
 import { ConversationHistory, generateConversationId, type ConversationRecord, type HistoryMessage } from "./history";
+import { downloadAndInstallUpdate, dismissUpdateVersion } from "./update-checker";
 
 // ============================================================
 // WebviewProvider — manages one Claude Code session per webview panel/sidebar
@@ -76,17 +77,17 @@ function cleanupSessionState(session: SessionState): void {
 interface SelectableModel {
   id: string;
   name: string;
-  provider: "Anthropic" | "OpenAI";
+  provider: "Claude Code CLI" | "OpenAI";
   agentBackend: "claude-code" | "codex";
   reasoning: boolean;
   contextWindow: number;
 }
 
 const ANTHROPIC_MODELS: SelectableModel[] = [
-  { id: "claude-opus-4-7",          name: "Claude Opus 4.7",  provider: "Anthropic", agentBackend: "claude-code", reasoning: true,  contextWindow: 1_000_000 },
-  { id: "claude-opus-4-6",          name: "Claude Opus 4.6",  provider: "Anthropic", agentBackend: "claude-code", reasoning: true,  contextWindow: 1_000_000 },
-  { id: "claude-sonnet-4-6",        name: "Claude Sonnet 4.6",provider: "Anthropic", agentBackend: "claude-code", reasoning: true,  contextWindow: 200_000   },
-  { id: "claude-haiku-4-5-20251001",name: "Claude Haiku 4.5", provider: "Anthropic", agentBackend: "claude-code", reasoning: false, contextWindow: 200_000   },
+  { id: "claude-opus-4-7",          name: "Claude Opus 4.7",  provider: "Claude Code CLI", agentBackend: "claude-code", reasoning: true,  contextWindow: 1_000_000 },
+  { id: "claude-opus-4-6",          name: "Claude Opus 4.6",  provider: "Claude Code CLI", agentBackend: "claude-code", reasoning: true,  contextWindow: 1_000_000 },
+  { id: "claude-sonnet-4-6",        name: "Claude Sonnet 4.6",provider: "Claude Code CLI", agentBackend: "claude-code", reasoning: true,  contextWindow: 200_000   },
+  { id: "claude-haiku-4-5-20251001",name: "Claude Haiku 4.5", provider: "Claude Code CLI", agentBackend: "claude-code", reasoning: false, contextWindow: 200_000   },
 ];
 
 interface CodexModelsCacheEntry {
@@ -154,7 +155,7 @@ function resolveModelInfo(id: string): SelectableModel {
   const claudeMatch = id.toLowerCase().match(/^claude-(\w+)-(\d+)-(\d+)(?:-.*)?$/);
   if (claudeMatch) {
     const family = claudeMatch[1].charAt(0).toUpperCase() + claudeMatch[1].slice(1);
-    return { id, name: `Claude ${family} ${claudeMatch[2]}.${claudeMatch[3]}`, provider: "Anthropic", agentBackend: "claude-code", reasoning: true, contextWindow: 200_000 };
+    return { id, name: `Claude ${family} ${claudeMatch[2]}.${claudeMatch[3]}`, provider: "Claude Code CLI", agentBackend: "claude-code", reasoning: true, contextWindow: 200_000 };
   }
   // Unknown non-Claude ID — assume it's a Codex model
   return { id, name: id, provider: "OpenAI", agentBackend: "codex", reasoning: false, contextWindow: 200_000 };
@@ -201,6 +202,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
   private bridge: TelegramBridge | null = null;
   private recorder = new AudioRecorder();
   private history!: ConversationHistory;
+  private resolvedExtensionVersion: string | null = null;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -488,7 +490,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist"), this.extensionUri],
     };
-    webviewView.webview.html = getWebviewHtml(this.extensionUri, webviewView.webview, sessionId);
+    webviewView.webview.html = getWebviewHtml(this.extensionUri, webviewView.webview, sessionId, this.getExtensionVersion());
     this.setupWebviewMessageHandling(webviewView.webview, sessionId);
   }
 
@@ -503,7 +505,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       }
     );
     this.getSession(sessionId).panel = panel;
-    panel.webview.html = getWebviewHtml(this.extensionUri, panel.webview, sessionId);
+    panel.webview.html = getWebviewHtml(this.extensionUri, panel.webview, sessionId, this.getExtensionVersion());
     this.setupWebviewMessageHandling(panel.webview, sessionId);
     panel.onDidDispose(() => {
       this.getSession(sessionId).panel = null;
@@ -513,11 +515,11 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
 
   focus(): void {
     if (this.webviewView) this.webviewView.show(true);
-    this.broadcastToAll({ type: "config", useCtrlEnterToSend: this.getUseCtrlEnter(), theme: this.getTheme() } as ExtensionToWebviewMessage);
+    this.broadcastConfig();
   }
 
   onConfigChanged(): void {
-    this.broadcastToAll({ type: "config", useCtrlEnterToSend: this.getUseCtrlEnter(), theme: this.getTheme() } as ExtensionToWebviewMessage);
+    this.broadcastConfig();
   }
 
   onStatusUpdate(callback: (status: StatusBarUpdate) => void): void {
@@ -674,9 +676,12 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         ? "Install with: npm install -g @openai/codex"
         : "Install with: npm install -g @anthropic-ai/claude-code";
       const isNotFound = err.message.includes("ENOENT") || err.message.includes("not found");
+      const isExitCode = err.message.includes("exited with code");
       const detail = isNotFound
         ? `${providerName} CLI not found. ${installHint}. Then restart VS Code.`
-        : `${providerName} error: ${err.message}. Make sure '${providerCmd}' is installed and in your PATH.`;
+        : isExitCode
+          ? `${providerName} crashed. ${err.message}`
+          : `${providerName} error: ${err.message}. Make sure '${providerCmd}' is installed and in your PATH.`;
       this.postToWebview(wv, {
         type: "process_exit",
         code: null,
@@ -691,7 +696,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     const workspaceFolders = vscode.workspace.workspaceFolders;
     const workingDir = cwd || workspaceFolders?.[0]?.uri.fsPath || process.cwd();
     const config = vscode.workspace.getConfiguration("rokketWrapper");
-    const claudePath = config.get<string>("claudeCodePath", "") || (process.platform === "win32" ? "claude.cmd" : "claude");
+    const claudePath = config.get<string>("claudeCodePath", "") || "claude";
 
     this.postToWebview(webview, { type: "process_status", status: "starting" } as ExtensionToWebviewMessage);
 
@@ -772,12 +777,13 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
   private async handleWebviewMessage(webview: vscode.Webview, sessionId: string, msg: Record<string, unknown>): Promise<void> {
     switch (msg.type) {
       case "ready": {
-        await this.checkWhatsNew(webview);
         this.postToWebview(webview, {
           type: "config",
           useCtrlEnterToSend: this.getUseCtrlEnter(),
           theme: this.getTheme(),
+          extensionVersion: this.getExtensionVersion(),
         } as ExtensionToWebviewMessage);
+        this.checkWhatsNew(webview).catch(() => {});
         const readySession = this.getSession(sessionId);
         const availableModels = await getSelectableModels();
         let persistedModel = readySession.selectedModel
@@ -1096,6 +1102,22 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       case "get_session_stats":
         break;
 
+      case "update_install": {
+        const downloadUrl = typeof msg.downloadUrl === "string" ? msg.downloadUrl : "";
+        if (downloadUrl) {
+          await downloadAndInstallUpdate(downloadUrl, this.context);
+        }
+        break;
+      }
+
+      case "update_dismiss": {
+        const dismissVersion = typeof msg.version === "string" ? msg.version : "";
+        if (dismissVersion) {
+          await dismissUpdateVersion(dismissVersion, this.context);
+        }
+        break;
+      }
+
       case "cleanup_temp":
         this.cleanupTempFiles();
         break;
@@ -1161,13 +1183,52 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     return vscode.workspace.getConfiguration("rokketWrapper").get<string>("theme", "forge");
   }
 
+  private getExtensionVersion(): string {
+    if (this.resolvedExtensionVersion !== null) return this.resolvedExtensionVersion;
+
+    const candidates = [
+      this.context.extension?.packageJSON?.version,
+      this.context.extension?.id
+        ? vscode.extensions.getExtension(this.context.extension.id)?.packageJSON?.version
+        : undefined,
+      vscode.extensions.getExtension("rokketek.rokketek-wrapper")?.packageJSON?.version,
+      vscode.extensions.getExtension("rokketek.rokket-wrapper")?.packageJSON?.version,
+      this.readPackageJsonVersion(),
+    ];
+
+    const version = candidates.find((candidate): candidate is string =>
+      typeof candidate === "string" && candidate.trim().length > 0
+    );
+    this.resolvedExtensionVersion = version ?? "";
+    return this.resolvedExtensionVersion;
+  }
+
+  private readPackageJsonVersion(): string | undefined {
+    try {
+      const packagePath = path.join(this.extensionUri.fsPath, "package.json");
+      const raw = fs.readFileSync(packagePath, "utf8");
+      const parsed = JSON.parse(raw) as { version?: unknown };
+      return typeof parsed.version === "string" ? parsed.version : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private broadcastConfig(): boolean {
+    return this.broadcastToAll({
+      type: "config",
+      useCtrlEnterToSend: this.getUseCtrlEnter(),
+      theme: this.getTheme(),
+      extensionVersion: this.getExtensionVersion(),
+    } as ExtensionToWebviewMessage);
+  }
+
   private static readonly LAST_VERSION_KEY = "rokketWrapper.lastSeenVersion";
   private static readonly LAST_MODEL_KEY = "rokketWrapper.lastModel";
   private static readonly LAST_THINKING_KEY = "rokketWrapper.lastThinkingLevel";
 
   private async checkWhatsNew(webview: vscode.Webview): Promise<void> {
-    const ext = vscode.extensions.getExtension("rokketek.rokket-wrapper");
-    const currentVersion = ext?.packageJSON?.version;
+    const currentVersion = this.getExtensionVersion();
     if (!currentVersion) return;
     const lastVersion = this.context.globalState.get<string>(RokketWrapperWebviewProvider.LAST_VERSION_KEY);
     await this.context.globalState.update(RokketWrapperWebviewProvider.LAST_VERSION_KEY, currentVersion);

@@ -69,5 +69,15 @@ describe("html-generator", () => {
       const html = getWebviewHtml({} as any, webview, "session-with-special-chars");
       expect(html).toContain('window.GSD_SESSION_ID = "session-with-special-chars"');
     });
+
+    it("embeds extension version as JSON in a script tag", () => {
+      const webview = {
+        asWebviewUri: (uri: any) => `uri:${uri}`,
+        cspSource: "test",
+      } as any;
+
+      const html = getWebviewHtml({} as any, webview, "session-id", "2.0.0");
+      expect(html).toContain('window.GSD_EXTENSION_VERSION = "2.0.0"');
+    });
   });
 });

@@ -1,5 +1,6 @@
 .gsd/
 .bg-shell/
+.tmp_vsix_check/
 .gitignore
 src/
 node_modules/

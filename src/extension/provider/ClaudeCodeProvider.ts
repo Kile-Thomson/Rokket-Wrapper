@@ -91,7 +91,7 @@ export class ClaudeCodeProvider extends IAgentProvider {
   private _effort: string | null = null;
   private initReceived = false;
 
-  constructor(private readonly claudePath: string = process.platform === "win32" ? "claude.cmd" : "claude") {
+  constructor(private readonly claudePath: string = "claude") {
     super();
   }
 

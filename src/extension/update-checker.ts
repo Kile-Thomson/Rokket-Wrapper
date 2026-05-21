@@ -96,26 +96,24 @@ export function startUpdateChecker(
   context: vscode.ExtensionContext,
   provider: RokketWrapperWebviewProvider
 ): void {
-  const enabled = vscode.workspace
-    .getConfiguration("rokketWrapper")
-    .get<boolean>("autoUpdate", true);
-  if (!enabled) return;
-
   const currentVersion = getInstalledVersion(context);
   if (!currentVersion) return;
 
   cachedProvider = provider;
 
-  const initialTimer = setTimeout(
-    () => checkForUpdate(context, currentVersion),
-    3_000
-  );
+  const isEnabled = () =>
+    vscode.workspace
+      .getConfiguration("rokketWrapper")
+      .get<boolean>("autoUpdate", true);
+
+  const guardedCheck = () => {
+    if (isEnabled()) checkForUpdate(context, currentVersion);
+  };
+
+  const initialTimer = setTimeout(guardedCheck, 3_000);
   context.subscriptions.push({ dispose: () => clearTimeout(initialTimer) });
 
-  const interval = setInterval(
-    () => checkForUpdate(context, currentVersion),
-    UPDATE_CHECK_INTERVAL_MS
-  );
+  const interval = setInterval(guardedCheck, UPDATE_CHECK_INTERVAL_MS);
   context.subscriptions.push({ dispose: () => clearInterval(interval) });
 }
 

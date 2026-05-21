@@ -11,7 +11,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Extension version displayed in the webview header
-- Interleave queued user messages with LLM responses during streaming
+- Telegram bridge drains queued inbound user messages sequentially, preempting ongoing streams via abort
+- Auto-update from GitHub releases with secure token resolution and native VS Code install flow
 
 ### Fixed
 - Claude Code CLI models now appear under "Claude Code CLI" in the model picker (were mislabelled "Anthropic", making them look like API-key models)

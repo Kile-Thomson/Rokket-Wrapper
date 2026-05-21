@@ -178,6 +178,20 @@ function removePendingDotsFromContainer(container: HTMLElement): void {
   container.querySelector(".gsd-thinking-dots")?.remove();
 }
 
+export function splitTurnForUserMessage(): void {
+  if (!currentTurnElement || !state.currentTurn) return;
+
+  priorTurnElements.push(currentTurnElement);
+  _splitSegmentBarrier = state.currentTurn.segments.length - 1;
+
+  const el = document.createElement("div");
+  el.className = "gsd-entry gsd-entry-assistant streaming";
+  el.dataset.entryId = state.currentTurn.id;
+  messagesContainer.appendChild(el);
+
+  currentTurnElement = el;
+}
+
 export function ensureCurrentTurnElement(): HTMLElement {
   if (!currentTurnElement) {
     // Check if there's a pending-dots-only element in the DOM (created
@@ -210,7 +224,23 @@ export function ensureCurrentTurnElement(): HTMLElement {
       const el = document.createElement("div");
       el.className = "gsd-entry gsd-entry-assistant streaming";
       el.dataset.entryId = state.currentTurn?.id || "stream";
-      messagesContainer.appendChild(el);
+
+      const allEntries = messagesContainer.querySelectorAll<HTMLElement>(".gsd-entry");
+      let trailingUserCount = 0;
+      for (let i = allEntries.length - 1; i >= 0; i--) {
+        if (allEntries[i].classList.contains("gsd-entry-user")) {
+          trailingUserCount++;
+        } else {
+          break;
+        }
+      }
+      if (trailingUserCount >= 2) {
+        const firstQueued = allEntries[allEntries.length - trailingUserCount];
+        firstQueued.after(el);
+      } else {
+        messagesContainer.appendChild(el);
+      }
+
       currentTurnElement = el;
       welcomeScreen.classList.add("gsd-hidden");
     }
@@ -654,13 +684,11 @@ export function finalizeCurrentTurn(usage?: import("./handlers/handler-state").M
   if (currentTurnElement) {
     currentTurnElement.classList.remove("streaming");
     if (priorTurnElements.length > 0) {
-      // Turn was split by user messages — prior elements already have rendered
-      // content in place. Don't rebuild (that would duplicate). Just finalize
-      // the prior partials and the current continuation in-place.
+      finalizeStreamingDom(turn, currentTurnElement, usage);
       for (const prior of priorTurnElements) {
         prior.classList.remove("streaming");
+        if (prior.innerHTML.trim() === "") prior.remove();
       }
-      // Remove empty continuation element if nothing was rendered into it
       if (currentTurnElement.innerHTML.trim() === "") {
         currentTurnElement.remove();
       }

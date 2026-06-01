@@ -7,6 +7,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.18] — 2026-06-01
+
+### Added
+- `LICENSE` file (MIT) so the Marketplace listing and packaged VSIX declare a license
+
+### Changed
+- CI/release workflows upgraded to `actions/checkout@v5` and `actions/setup-node@v5` (Node 24 action runtime) ahead of GitHub's June 16, 2026 Node 20 deprecation; build/test Node version bumped 20 → 24
+- Hardened workflow checkout with `persist-credentials: false` so `GITHUB_TOKEN` is no longer left in the runner's git config; the release tag push now authenticates via an explicit token URL
+
+---
+
 ## [0.1.17] — 2026-06-01
 
 ### Added

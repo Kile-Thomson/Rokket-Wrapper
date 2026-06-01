@@ -373,10 +373,10 @@ describe("TelegramBridge", () => {
       expect(client.prompt).not.toHaveBeenCalled();
     });
 
-    it("owner gate sends a hint and drops the message when no owner is configured", async () => {
+    it("owner gate is opt-in — routes normally when no owner is configured", async () => {
       const client = createMockClient();
       setup([], new Map([[200, "s1"]]), new Map(), new Map([["s1", { client, isStreaming: false }]]));
-      bridge.setOwnerId(null);
+      bridge.setOwnerId(null); // no owner configured — bot stays open
       await bridge._testInjectUpdates([{
         update_id: 1,
         message: {
@@ -387,11 +387,12 @@ describe("TelegramBridge", () => {
           message_thread_id: 200,
         },
       }]);
-      expect(client.prompt).not.toHaveBeenCalled();
+      expect(client.prompt).toHaveBeenCalled();
+      // No gate hint when the gate is disabled.
       const hint = (api.sendMessage as ReturnType<typeof vi.fn>).mock.calls.find(
         (c) => typeof c[1] === "string" && c[1].includes("No owner ID configured"),
       );
-      expect(hint).toBeDefined();
+      expect(hint).toBeUndefined();
     });
 
     it("owner gate silently drops a message from a non-owner sender", async () => {

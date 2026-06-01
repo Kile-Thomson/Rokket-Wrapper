@@ -248,20 +248,11 @@ export class TelegramBridge {
         continue;
       }
 
-      // Owner gate: lock the bot to the configured owner. Runs after /whoami and
-      // /telegram so those stay reachable. No owner configured → a visible nudge;
-      // wrong sender → log and drop silently (mirrors gsd-vscode, no reply).
-      if (!this.ownerId) {
-        this.logger.info(
-          "[telegram-bridge] Message denied — no owner ID configured. Use /whoami to get your ID.",
-        );
-        await this.sendToThread(
-          message.message_thread_id ?? null,
-          "⛔ No owner ID configured. Send /whoami to get your Telegram ID, then set it in the RokketWrapper Telegram settings.",
-        ).catch(() => {});
-        continue;
-      }
-      if (message.from?.id !== this.ownerId) {
+      // Owner gate (opt-in): only enforced once an owner is configured. With no
+      // owner set the bot stays open as before; setting an owner locks it to
+      // that sender. Runs after /whoami and /telegram so those stay reachable.
+      // Wrong sender → log and drop silently (mirrors gsd-vscode, no reply).
+      if (this.ownerId && message.from?.id !== this.ownerId) {
         this.logger.info(
           `[telegram-bridge] Message denied — sender ${message.from?.id} is not owner ${this.ownerId}`,
         );

@@ -350,6 +350,31 @@ describe("TelegramBridge", () => {
       expect(restartingCall![2] ?? {}).not.toHaveProperty("message_thread_id");
     });
 
+    it("owner gate drops a callback (restart) from a non-owner sender", async () => {
+      const onRestart = vi.fn().mockResolvedValue(true);
+      setup([], new Map(), new Map(), new Map([["s1", { client: createMockClient(), isStreaming: false }]]));
+      bridge.setGeneralSession("s1");
+      bridge.setOnRestartRequest(onRestart);
+      bridge.setOwnerId(99); // owner is 99; the tap below comes from someone else
+
+      await bridge._testInjectUpdates([{
+        update_id: 1,
+        callback_query: {
+          id: "cbq1",
+          from: { id: 12345, is_bot: false, first_name: "Intruder" },
+          data: "restart:s1",
+        },
+      } as unknown as TelegramUpdate]);
+
+      // Side-effectful action must not fire for a non-owner…
+      expect(onRestart).not.toHaveBeenCalled();
+      // …and the callback is dismissed with a "Not authorized" ack.
+      expect(api.answerCallbackQuery).toHaveBeenCalledWith("cbq1", "Not authorized");
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining("Callback denied"),
+      );
+    });
+
     it("/whoami replies with the sender id and bypasses the owner gate", async () => {
       const client = createMockClient();
       setup([], new Map([[200, "s1"]]), new Map(), new Map([["s1", { client, isStreaming: false }]]));

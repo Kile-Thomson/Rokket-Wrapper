@@ -81,7 +81,7 @@ Set the bot token one of two ways — either is fine, and both store the token i
 
 #### 5. (Optional) Lock the bot to you
 
-By default the bot is **open** — anyone in the chat can drive it. If you'd rather lock it down, set an **owner**: once an owner id is configured, only that person's messages are forwarded and everyone else's are silently ignored. Leaving the owner unset keeps the bot open.
+By default, the bot is **open** — anyone in the chat can drive it. If you'd rather lock it down, set an **owner**: once an owner id is configured, only that person's messages are forwarded and everyone else's are silently ignored. Leaving the owner unset keeps the bot open.
 
 - The **setup wizard** captures the owner automatically: whoever sends the detection message in step 4 becomes the owner. (On manual setup it asks for your user id, which you can skip.)
 - To set or change it yourself, send **`/whoami`** in the group — the bot replies with your numeric Telegram user id — then paste that id into the **Telegram** field's **user ID** box in the settings menu (gear icon) and click **Save**. You can also set `rokketWrapper.telegramOwnerId` directly.

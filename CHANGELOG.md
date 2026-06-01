@@ -10,7 +10,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [0.1.21] — 2026-06-01
 
 ### Added
-- Telegram owner gate (opt-in): the bot can now be locked to a single Telegram user. The gate is off by default — with no owner set the bot stays open to the chat as before; set your user id to lock it. Set the id via the **Telegram** field in the settings menu, by re-running Telegram Setup (which captures the sender of the detection message automatically), or via the `rokketWrapper.telegramOwnerId` setting. Send **/whoami** in the group at any time to have the bot reply with your Telegram user id
+- Telegram owner gate (opt-in): the bot can now be locked to a single Telegram user. The gate is off by default — with no owner set, the bot stays open to the chat as before; set your user id to lock it. Set the id via the **Telegram** field in the settings menu, by re-running Telegram Setup (which captures the sender of the detection message automatically), or via the `rokketWrapper.telegramOwnerId` setting. Send **/whoami** in the group at any time to have the bot reply with your Telegram user id
 - **/whoami** command — replies with the sender's Telegram user id (and `@username` when available). Handled before the owner gate, so anyone can use it to discover their id
 - Friendly "Topics not enabled" guidance: when you try to sync a session to a supergroup that doesn't have Topics (forum mode) turned on, the bridge now surfaces an actionable warning (open the group → Edit → enable "Topics") instead of a raw Telegram 400 error (new `TelegramNotForumError`)
 

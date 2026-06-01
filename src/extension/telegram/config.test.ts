@@ -109,6 +109,17 @@ describe("TelegramConfig", () => {
     expect(loaded?.ownerId).toBe(0);
   });
 
+  it("saveTelegramConfig clears a previously persisted ownerId when re-saved with zero", async () => {
+    await saveTelegramConfig(secrets, config, { ...SAMPLE_CONFIG, ownerId: 555 }, GLOBAL_TARGET);
+    expect(config.get("telegramOwnerId")).toBe(555);
+    // Re-saving with ownerId 0 (owner removed) must clear the stale key so the
+    // bot re-opens rather than staying locked to the previous owner.
+    await saveTelegramConfig(secrets, config, { ...SAMPLE_CONFIG, ownerId: 0 }, GLOBAL_TARGET);
+    expect(config.get("telegramOwnerId")).toBeUndefined();
+    const loaded = await loadTelegramConfig(secrets, config);
+    expect(loaded?.ownerId).toBe(0);
+  });
+
   it("clearTelegramConfig removes a persisted ownerId", async () => {
     const withOwner: TelegramConfig = { ...SAMPLE_CONFIG, ownerId: 555 };
     await saveTelegramConfig(secrets, config, withOwner, GLOBAL_TARGET);

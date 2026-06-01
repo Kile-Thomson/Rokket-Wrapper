@@ -40,7 +40,7 @@ A VS Code extension that provides a rich GUI for Claude Code CLI and Codex CLI �
 
 1. Create a bot via [@BotFather](https://t.me/botfather) and copy the bot token
 2. Add the bot to a **Supergroup** — regular groups won't work (convert via Group Settings → Advanced → Topics if needed)
-3. Type `/telegram` in the chat input — the setup wizard walks through token entry, group detection, and admin verification (also accessible via the VS Code Command Palette as **RokketWrapper: Telegram Setup**). The bot token is entered through the wizard and held in VS Code secret storage — there is no token setting to edit by hand
+3. Set the bot token one of two ways — either paste it into the **Telegram** field in the panel's settings menu (the gear icon) and click **Save**, or run the setup wizard by typing `/telegram` in the chat input (also available via the Command Palette as **RokketWrapper: Telegram Setup**), which additionally handles group detection and admin verification. Either way the token is held in VS Code secret storage, never in an editable setting
 4. Use the **Sync** button in the panel header to link the current session to your Telegram group
 
 ## Configuration

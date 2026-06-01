@@ -74,6 +74,8 @@ export class TelegramBridge {
   private readonly processingSession = new Set<string>();
   /** The session that owns the General topic (no thread id). null = none. */
   private generalSessionId: string | null = null;
+  /** Telegram user id allowed to drive the bot. null = no owner gate. */
+  private ownerId: number | null = null;
   // Per-session response thread captured while a message is being delivered.
   // null = General topic (omit message_thread_id), number = a specific topic thread.
   private readonly activeResponseThread = new Map<string, number | null>();
@@ -137,6 +139,10 @@ export class TelegramBridge {
   setGeneralSession(sessionId: string | null): void {
     this.generalSessionId = sessionId;
     this.logger.info(`[telegram-bridge] General session set to ${sessionId}`);
+  }
+
+  setOwnerId(id: number | null): void {
+    this.ownerId = id;
   }
 
   /**
@@ -227,6 +233,38 @@ export class TelegramBridge {
       );
       if (rawText.toLowerCase().startsWith("/telegram")) {
         this.logger.info("[telegram-bridge] Skipping /telegram command");
+        continue;
+      }
+
+      // /whoami is handled before the owner gate so anyone can discover their id.
+      if (rawText.toLowerCase() === "/whoami") {
+        const userId = message.from?.id;
+        const username = message.from?.username ? ` (@${message.from.username})` : "";
+        await this.sendToThread(
+          message.message_thread_id ?? null,
+          `Your Telegram user ID: \`${String(userId)}\`${username}`,
+          { parse_mode: "Markdown" },
+        ).catch(() => {});
+        continue;
+      }
+
+      // Owner gate: lock the bot to the configured owner. Runs after /whoami and
+      // /telegram so those stay reachable. No owner configured → a visible nudge;
+      // wrong sender → log and drop silently (mirrors gsd-vscode, no reply).
+      if (!this.ownerId) {
+        this.logger.info(
+          "[telegram-bridge] Message denied — no owner ID configured. Use /whoami to get your ID.",
+        );
+        await this.sendToThread(
+          message.message_thread_id ?? null,
+          "⛔ No owner ID configured. Send /whoami to get your Telegram ID, then set it in the RokketWrapper Telegram settings.",
+        ).catch(() => {});
+        continue;
+      }
+      if (message.from?.id !== this.ownerId) {
+        this.logger.info(
+          `[telegram-bridge] Message denied — sender ${message.from?.id} is not owner ${this.ownerId}`,
+        );
         continue;
       }
 

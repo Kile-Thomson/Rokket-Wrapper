@@ -162,6 +162,9 @@ describe("Telegram Integration (composed system)", () => {
       BOT_TOKEN,
       CHAT_ID,
     );
+    // Owner gate is opt-in via owner id; the inbound fixtures use sender 555,
+    // so set that as the owner to exercise the post-gate routing paths.
+    bridge.setOwnerId(555);
   });
 
   afterEach(() => {

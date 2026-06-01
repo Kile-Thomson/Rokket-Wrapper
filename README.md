@@ -79,9 +79,18 @@ Set the bot token one of two ways — either is fine, and both store the token i
 - **Settings menu** — open the panel's settings menu (the gear icon), paste the token into the **Telegram** field, and click **Save**
 - **Setup wizard** — type `/telegram` in the chat input (also available via the Command Palette as **RokketWrapper: Telegram Setup**). The wizard walks through bot creation, validates the token, listens for a message to auto-detect your group, and verifies the bot's admin status
 
-#### 5. Link a session
+#### 5. Set the owner (lock the bot to you)
 
-Use the **Sync** button in the panel header to link the current session to your Telegram group. A new forum topic is created for that session, and the bot posts a confirmation message in the group.
+The bot only acts on messages from its configured **owner** — anyone else's messages are ignored. Until you set an owner, every message gets a one-line ⛔ reply telling you how to set it, and nothing is forwarded to a session.
+
+- The **setup wizard** captures the owner automatically: whoever sends the detection message in step 4 becomes the owner. (On manual setup it asks for your user id, which you can skip.)
+- To set or change it yourself, send **`/whoami`** in the group — the bot replies with your numeric Telegram user id — then paste that id into the **Telegram** field's **user ID** box in the settings menu (gear icon) and click **Save**. You can also set `rokketWrapper.telegramOwnerId` directly.
+
+`/whoami` and `/telegram` always work regardless of the owner setting, so you can always recover your id.
+
+#### 6. Link a session
+
+Use the **Sync** button in the panel header to link the current session to your Telegram group. A new forum topic is created for that session, and the bot posts a confirmation message in the group. If the group doesn't have Topics enabled, the extension warns you and leaves sync off until you enable Topics (step 2).
 
 #### How it works
 
@@ -93,6 +102,7 @@ Once connected, the bridge:
 - Shows **tool execution status** inline (`⏳` in-progress → `✅` done / `❌` error, with elapsed time)
 - Shows a **typing indicator** while the agent is working
 - Presents the agent's multiple-choice questions as **inline Telegram buttons**
+- **Gates all commands to the owner** — only the configured owner's messages are forwarded; `/whoami` (get your id) and `/telegram` (setup) are always allowed
 
 #### Voice messages
 
@@ -118,6 +128,7 @@ Photos sent to the group are downloaded and injected directly into the prompt as
 | `rokketWrapper.telegramChatTitle` | Telegram group chat title (set automatically) | `""` |
 | `rokketWrapper.telegramBotUsername` | Telegram bot username (set automatically) | `""` |
 | `rokketWrapper.telegramStreamingGranularity` | How responses stream to Telegram: `off`, `throttled`, `final-only` | `throttled` |
+| `rokketWrapper.telegramOwnerId` | Telegram user id allowed to drive the bot (send `/whoami` to find yours; `0` = no owner set, bot stays locked) | `0` |
 | `rokketWrapper.voiceTranscriptionProvider` | Voice provider: `openai`, `azure`, `xai` | `openai` |
 | `rokketWrapper.azureSpeechRegion` | Azure Speech Services region | `eastus` |
 

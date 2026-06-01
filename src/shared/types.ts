@@ -71,6 +71,7 @@ export type WebviewToExtensionMessage =
   | { type: "set_voice_region"; regionType: "azure"; value: string }
   | { type: "get_voice_config" }
   | { type: "set_telegram_bot_token"; token: string }
+  | { type: "set_telegram_owner_id"; ownerId: number }
   | { type: "shutdown" };
 
 // --- Messages FROM extension TO webview ---

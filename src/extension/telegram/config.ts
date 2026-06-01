@@ -6,6 +6,8 @@ export interface TelegramConfig {
   chatId: number;
   chatTitle: string;
   streamingGranularity: "off" | "throttled" | "final-only";
+  /** Telegram user id allowed to drive the bot. 0 = no owner configured. */
+  ownerId: number;
 }
 
 const SECRET_KEY = "gsd.telegramBotToken";
@@ -26,6 +28,7 @@ export async function loadTelegramConfig(
     chatId,
     chatTitle: config.get<string>("telegramChatTitle", ""),
     streamingGranularity: config.get<"off" | "throttled" | "final-only">("telegramStreamingGranularity", "throttled")!,
+    ownerId: config.get<number>("telegramOwnerId", 0),
   };
 }
 
@@ -40,6 +43,7 @@ export async function saveTelegramConfig(
   await config.update("telegramChatTitle", telegramConfig.chatTitle, configTarget);
   await config.update("telegramBotUsername", telegramConfig.botUsername, configTarget);
   await config.update("telegramStreamingGranularity", telegramConfig.streamingGranularity, configTarget);
+  if (telegramConfig.ownerId) await config.update("telegramOwnerId", telegramConfig.ownerId, configTarget);
 }
 
 export async function clearTelegramConfig(
@@ -52,4 +56,5 @@ export async function clearTelegramConfig(
   await config.update("telegramChatTitle", undefined, configTarget);
   await config.update("telegramBotUsername", undefined, configTarget);
   await config.update("telegramStreamingGranularity", undefined, configTarget);
+  await config.update("telegramOwnerId", undefined, configTarget);
 }

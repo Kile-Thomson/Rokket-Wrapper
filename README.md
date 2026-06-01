@@ -40,6 +40,13 @@ A VS Code extension that provides a rich GUI for Claude Code CLI and Codex CLI �
 
 Remote control streams each Claude session into its own **forum topic** in a Telegram supergroup, so the chat must be set up correctly first. The steps below get you from zero to a connected bot.
 
+**Prerequisites:**
+
+- A **Telegram bot** created via [@BotFather](https://t.me/botfather) — you'll need the bot token
+- A **Telegram supergroup with Topics (forum mode) enabled** — the bridge creates one topic per session so conversations don't mix
+- The bot added to that supergroup as an **administrator** with the **Manage Topics** permission
+- Optional, for voice messages: an API key for your chosen transcription provider (OpenAI, Azure, or xAI)
+
 #### 1. Create a bot
 
 1. Open Telegram and start a chat with [@BotFather](https://t.me/botfather)
@@ -75,6 +82,24 @@ Set the bot token one of two ways — either is fine, and both store the token i
 #### 5. Link a session
 
 Use the **Sync** button in the panel header to link the current session to your Telegram group. A new forum topic is created for that session, and the bot posts a confirmation message in the group.
+
+#### How it works
+
+Once connected, the bridge:
+
+- Creates a new **forum topic** per session, so each conversation stays in its own thread
+- Forwards your Telegram messages to the active session and streams responses back as edited messages (controlled by `rokketWrapper.telegramStreamingGranularity`)
+- Shows **tool execution status** inline (`⏳` in-progress → `✅` done / `❌` error, with elapsed time)
+- Shows a **typing indicator** while the agent is working
+- Presents the agent's multiple-choice questions as **inline Telegram buttons**
+
+#### Voice messages
+
+Send a voice message in the group and the bridge downloads the audio, transcribes it with your configured provider (`rokketWrapper.voiceTranscriptionProvider` — `openai`, `azure`, or `xai`), and feeds the transcript to the agent as a normal prompt. You'll see a `🎙️ Transcribing…` status while it works. If no provider key is set, voice messages are ignored with a prompt to configure one.
+
+#### Photo support
+
+Photos sent to the group are downloaded and injected directly into the prompt as image attachments.
 
 ## Configuration
 

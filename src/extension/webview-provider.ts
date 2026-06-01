@@ -335,10 +335,12 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         this.postToWebview(webview, { type: "state", data: { telegramSyncActive: false } } as any);
         this.output.appendLine(`[telegram-sync] Sync off for session ${sessionId}`);
         if (this.bridge) {
-          // Reassign the General-topic leader to the next active session, or clear it.
-          const remaining = tm.activeSessions;
-          this.bridge.setGeneralSession(remaining.length > 0 ? remaining[0] : null);
-          if (remaining.length === 0) {
+          // Only reassign the General-topic leader when the departing session was the leader.
+          if (this.bridge.getGeneralSessionId() === sessionId) {
+            const remaining = tm.activeSessions;
+            this.bridge.setGeneralSession(remaining.length > 0 ? remaining[0] : null);
+          }
+          if (tm.activeSessions.length === 0) {
             this.bridge.stopPolling();
           }
         }

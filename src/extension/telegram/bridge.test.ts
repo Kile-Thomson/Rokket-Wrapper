@@ -14,6 +14,7 @@ function createMockApi(updates: TelegramUpdate[] = []): TelegramApi {
     sendMessage: vi.fn().mockResolvedValue({ message_id: 1, chat: { id: 1, type: "supergroup" } }),
     editMessageText: vi.fn().mockResolvedValue({ message_id: 1, chat: { id: 1, type: "supergroup" } }),
     sendChatAction: vi.fn().mockResolvedValue(undefined),
+    answerCallbackQuery: vi.fn().mockResolvedValue(undefined),
     getFile: vi.fn().mockResolvedValue({ file_id: "fid", file_unique_id: "u", file_path: "photos/file_0.jpg" }),
     downloadFile: vi.fn().mockResolvedValue({ base64: "aW1hZ2VkYXRh", mimeType: "image/jpeg" }),
   } as unknown as TelegramApi;
@@ -266,6 +267,57 @@ describe("TelegramBridge", () => {
       expect(bridge.getGeneralSessionId()).toBe("sX");
       bridge.setGeneralSession(null);
       expect(bridge.getGeneralSessionId()).toBeNull();
+    });
+
+    it("General-topic question flow omits message_thread_id on send and on the answered edit", async () => {
+      // Drive a real General delivery so the active response thread is null,
+      // and have the prompt fire a question mid-turn (fire-and-forget).
+      const client: BridgeClient = {
+        abort: vi.fn().mockResolvedValue(undefined),
+        prompt: vi.fn().mockImplementation(async () => {
+          // Not awaited: the answer arrives later via a callback_query update.
+          void bridge.sendQuestion("s1", "req1", "Pick one", ["A", "B"]);
+        }),
+      };
+      setup([], new Map(), new Map(), new Map([["s1", { client, isStreaming: false }]]));
+      bridge.setGeneralSession("s1");
+
+      await bridge._testInjectUpdates([{
+        update_id: 1,
+        message: {
+          message_id: 1,
+          from: { id: 99, is_bot: false, first_name: "User" },
+          chat: { id: CHAT_ID, type: "supergroup" },
+          text: "decide for me",
+          // no message_thread_id → General topic
+        },
+      }]);
+
+      // The question prompt is sent to General with no message_thread_id.
+      const questionCall = (api.sendMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c) => typeof c[1] === "string" && c[1].includes("❓ Pick one"),
+      );
+      expect(questionCall).toBeDefined();
+      expect(questionCall![2]).not.toHaveProperty("message_thread_id");
+
+      // Flush the fire-and-forget sendQuestion microtasks so the pending question is registered.
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Answer it via a callback_query — the "Answered" edit must also omit the thread id.
+      await bridge._testInjectUpdates([{
+        update_id: 2,
+        callback_query: {
+          id: "cbq1",
+          from: { id: 99, is_bot: false, first_name: "User" },
+          data: "q:req1:0",
+        },
+      } as unknown as TelegramUpdate]);
+
+      const answeredEdit = (api.editMessageText as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c) => typeof c[2] === "string" && c[2].includes("Answered: A"),
+      );
+      expect(answeredEdit).toBeDefined();
+      expect(answeredEdit![3]).not.toHaveProperty("message_thread_id");
     });
 
     it("skips when no session for topic", async () => {

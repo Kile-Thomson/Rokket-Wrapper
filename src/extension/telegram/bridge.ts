@@ -50,7 +50,8 @@ interface PendingQuestion {
   resolve: (value: string | null) => void;
   optionMap: Map<string, string>;
   messageId: number;
-  threadId: number;
+  // null = General topic (omit message_thread_id on follow-up edits).
+  threadId: number | null;
 }
 
 interface ActiveTool {
@@ -527,7 +528,7 @@ export class TelegramBridge {
           resolve,
           optionMap,
           messageId: msg.message_id,
-          threadId: threadId ?? 0,
+          threadId,
         });
       });
     } catch (err: unknown) {
@@ -542,10 +543,10 @@ export class TelegramBridge {
     if (pending) {
       this.pendingQuestions.delete(requestId);
       pending.resolve(null);
-      this.api.editMessageText(this.chatId, pending.messageId, "⏭ Answered locally", {
-        message_thread_id: pending.threadId,
-        reply_markup: { inline_keyboard: [] },
-      }).catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
+      const editOpts: Record<string, unknown> = { reply_markup: { inline_keyboard: [] } };
+      if (pending.threadId != null) editOpts.message_thread_id = pending.threadId;
+      this.api.editMessageText(this.chatId, pending.messageId, "⏭ Answered locally", editOpts)
+        .catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
     }
   }
 
@@ -602,10 +603,10 @@ export class TelegramBridge {
 
     this.pendingQuestions.delete(requestId);
     await this.api.answerCallbackQuery(query.id, `✓ ${selectedOption}`).catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
-    this.api.editMessageText(this.chatId, pending.messageId, `❓ Answered: ${selectedOption}`, {
-      message_thread_id: pending.threadId,
-      reply_markup: { inline_keyboard: [] },
-    }).catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
+    const answeredEditOpts: Record<string, unknown> = { reply_markup: { inline_keyboard: [] } };
+    if (pending.threadId != null) answeredEditOpts.message_thread_id = pending.threadId;
+    this.api.editMessageText(this.chatId, pending.messageId, `❓ Answered: ${selectedOption}`, answeredEditOpts)
+      .catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
 
     this.logger.info(`[telegram-bridge] Question ${requestId} answered via Telegram: ${selectedOption}`);
     pending.resolve(selectedOption);

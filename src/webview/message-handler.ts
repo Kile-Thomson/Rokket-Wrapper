@@ -33,6 +33,7 @@ import * as dashboard from "./dashboard";
 import * as autoProgress from "./auto-progress";
 import * as visualizer from "./visualizer";
 import * as fileHandling from "./file-handling";
+import * as workflowLive from "./workflow-live";
 import { announceToScreenReader, createFocusTrap, restoreFocus } from "./a11y";
 import { registerTimeout } from "./dispose";
 import { setChangelogHandlers, getChangelogTriggerEl, dismissChangelog } from "./keyboard";
@@ -356,6 +357,16 @@ function handleMessage(event: MessageEvent): void {
 
     case "workflow_state": {
       updateWorkflowBadge(msg.state);
+      break;
+    }
+
+    case "workflow_live": {
+      workflowLive.update(msg.data);
+      break;
+    }
+
+    case "workflow_live_remove": {
+      workflowLive.remove(msg.runId);
       break;
     }
 
@@ -1021,6 +1032,7 @@ function handleMessage(event: MessageEvent): void {
         renderer.finalizeCurrentTurn();
       }
       addSystemEntry("Session ended", "info");
+      workflowLive.reset();
       updateInputUI();
       updateOverlayIndicators();
       break;
@@ -1243,6 +1255,7 @@ function handleMessage(event: MessageEvent): void {
       state.currentTurn = null;
       renderer.resetStreamingState();
       renderer.clearMessages();
+      workflowLive.reset();
       state.sessionStats = {};
       state.loadedSkills.clear();
       updateSkillPills();

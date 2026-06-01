@@ -29,6 +29,13 @@ export const HEALTH_CHECK_INTERVAL_MS = 30_000;
 export const HEALTH_PING_TIMEOUT_MS = 10_000;
 export const WORKFLOW_POLL_INTERVAL_MS = 30_000;
 export const AUTO_PROGRESS_POLL_INTERVAL_MS = 3_000;
+
+// Live workflow disk watcher (workflow-fs-watcher) — tails journal.jsonl
+export const WORKFLOW_FS_WATCH_INTERVAL_MS = 1_000;
+export const WORKFLOW_LIVE_DISMISS_MS = 6_000;
+export const WORKFLOW_FS_STARTUP_GRACE_MS = 15_000;
+export const STALE_WORKFLOW_THRESHOLD_MS = 45_000;
+
 export const UPDATE_CHECK_INTERVAL_MS = 3_600_000;
 export const BUDGET_CEILING_TTL_MS = 30_000;
 

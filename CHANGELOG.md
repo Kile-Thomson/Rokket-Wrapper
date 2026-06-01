@@ -7,6 +7,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.17] — 2026-06-01
+
+### Added
+- Live workflow visibility: when a Claude Code `Workflow` fans out sub-agents, an inline card appears in the conversation the moment the run starts, ticking each agent running → done in real time and persisting as a transcript record afterward. Driven by a disk watcher that tails the run's `journal.jsonl`, independent of the turn lifecycle (Codex backend excluded — it writes no Claude workflow journal)
+- `rokketWrapper.workflowLivePanel` setting (default on) to toggle the live card
+- `rokketWrapper.workflowDiagnostics` setting (default off) — opt-in overlay for troubleshooting live-card delivery
+
+---
+
 ## [0.1.16] — 2026-05-22
 
 ### Added

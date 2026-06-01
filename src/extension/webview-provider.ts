@@ -16,6 +16,7 @@ import { transcribeWithProvider, validateApiKey, type TranscriptionProvider } fr
 import { getTranscriptionApiKey, setTranscriptionApiKey, getVoiceProvider, getAzureRegion } from "./transcription/config";
 import { AudioRecorder } from "./transcription/recorder";
 import { getWebviewHtml } from "./html-generator";
+import { WorkflowFsWatcher } from "./workflow-fs-watcher";
 import { ConversationHistory, generateConversationId, type ConversationRecord, type HistoryMessage } from "./history";
 import { downloadAndInstallUpdate, dismissUpdateVersion } from "./update-checker";
 
@@ -45,6 +46,8 @@ interface SessionState {
   conversationMessages: HistoryMessage[];
   currentAssistantText: string;
   lastUserMessage: string | null;
+  /** Live workflow disk watcher — null until a claude-code provider launches. */
+  workflowFsWatcher: WorkflowFsWatcher | null;
 }
 
 function createSessionState(): SessionState {
@@ -64,6 +67,7 @@ function createSessionState(): SessionState {
     conversationMessages: [],
     currentAssistantText: "",
     lastUserMessage: null,
+    workflowFsWatcher: null,
   };
 }
 
@@ -72,6 +76,8 @@ function cleanupSessionState(session: SessionState): void {
   session.provider = null;
   session.messageHandlerDisposable?.dispose();
   session.messageHandlerDisposable = null;
+  session.workflowFsWatcher?.dispose();
+  session.workflowFsWatcher = null;
 }
 
 interface SelectableModel {
@@ -492,6 +498,10 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     };
     webviewView.webview.html = getWebviewHtml(this.extensionUri, webviewView.webview, sessionId, this.getExtensionVersion());
     this.setupWebviewMessageHandling(webviewView.webview, sessionId);
+    // The HTML rebuild above wipes any rendered live-workflow cards. Replay the
+    // last snapshot of each tracked run into the fresh webview so in-flight and
+    // completed cards survive a sidebar hide/show.
+    this.getSession(sessionId).workflowFsWatcher?.rebindWebview(webviewView.webview);
   }
 
   openInTab(): void {
@@ -670,6 +680,9 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       this.output.appendLine(`[${sessionId}] Provider error: ${err.message}`);
       this.getSession(sessionId).isStreaming = false;
       this.emitStatus({ isStreaming: false });
+      // Process crashed/exited — retract any still-visible live workflow cards so
+      // a dead run doesn't leave a stuck "running" panel in the conversation.
+      this.getSession(sessionId).workflowFsWatcher?.onProcessExit();
       const providerName = agentBackend === "codex" ? "Codex" : "Claude Code";
       const providerCmd = agentBackend === "codex" ? "codex" : "claude";
       const installHint = agentBackend === "codex"
@@ -701,6 +714,11 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     this.postToWebview(webview, { type: "process_status", status: "starting" } as ExtensionToWebviewMessage);
 
     const session = this.getSession(sessionId);
+    // Relaunch (session switch / restart / cold start): retract any live cards
+    // from the previous provider and tear down its watcher before starting fresh,
+    // so a stale "running" card can't strand and timers don't leak.
+    session.workflowFsWatcher?.onProcessExit();
+    session.workflowFsWatcher = null;
     // Re-derive backend from model at launch time — session.selectedBackend may lag behind
     // if set_model hasn't arrived yet when a prompt auto-triggers launch.
     // Fall back to globalState so we never launch the wrong provider on cold start.
@@ -738,6 +756,15 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         type: "state",
         data: { telegramSyncActive: this.topicManager?.getTopicForSession(sessionId) !== undefined },
       } as any);
+
+      // Live workflow visibility: tail the on-disk journal for Claude Code
+      // `Workflow` fan-outs. Codex writes no Claude workflow journal, so gate it
+      // off there. The watcher only needs the project cwd to derive the slug.
+      if (agentBackend !== "codex") {
+        const fsWatcher = new WorkflowFsWatcher(sessionId, webview, this.output, workingDir);
+        session.workflowFsWatcher = fsWatcher;
+        fsWatcher.start();
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       const providerName = agentBackend === "codex" ? "Codex" : "Claude Code";
@@ -1009,6 +1036,9 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         session.conversationMessages = [];
         session.currentAssistantText = "";
         session.lastUserMessage = null;
+        // Retract prior cards and advance the admission watermark so a previous
+        // conversation's journals can't re-surface as fresh runs.
+        session.workflowFsWatcher?.onNewConversation();
         break;
       }
 

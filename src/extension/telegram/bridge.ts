@@ -38,9 +38,12 @@ interface QueuedMessage {
   text: string;
   images?: BridgeImage[];
   routeLabel: string;
+  /** Thread the message arrived on. number = topic thread, null = General topic. */
+  originThreadId?: number | null;
+  isGeneralTopic?: boolean;
 }
 
-export type InboundMessageCallback = (sessionId: string, text: string, images?: BridgeImage[]) => void;
+export type InboundMessageCallback = (sessionId: string, text: string, images?: BridgeImage[], opts?: { isGeneralTopic?: boolean }) => void;
 export type RestartRequestCallback = (sessionId: string) => Promise<boolean>;
 
 interface PendingQuestion {
@@ -67,6 +70,11 @@ export class TelegramBridge {
   private onRestartRequest: RestartRequestCallback | undefined;
   private readonly messageQueue = new Map<string, QueuedMessage[]>();
   private readonly processingSession = new Set<string>();
+  /** The session that owns the General topic (no thread id). null = none. */
+  private generalSessionId: string | null = null;
+  // Per-session response thread captured while a message is being delivered.
+  // null = General topic (omit message_thread_id), number = a specific topic thread.
+  private readonly activeResponseThread = new Map<string, number | null>();
   private readonly pendingQuestions = new Map<string, PendingQuestion>();
   private readonly activeTools = new Map<string, ActiveTool>();
   private readonly pendingToolEnds = new Map<string, { isError: boolean; durationMs?: number }>();
@@ -120,6 +128,34 @@ export class TelegramBridge {
     this.onRestartRequest = cb;
   }
 
+  getGeneralSessionId(): string | null {
+    return this.generalSessionId;
+  }
+
+  setGeneralSession(sessionId: string | null): void {
+    this.generalSessionId = sessionId;
+    this.logger.info(`[telegram-bridge] General session set to ${sessionId}`);
+  }
+
+  /**
+   * Resolves where a session's outbound messages should go.
+   * `undefined` = thread unknown (caller should bail), `null` = General topic
+   * (send with no `message_thread_id`), `number` = a specific topic thread.
+   */
+  private getResponseThread(sessionId: string): number | null | undefined {
+    if (this.activeResponseThread.has(sessionId)) {
+      return this.activeResponseThread.get(sessionId)!;
+    }
+    return this.topicManager.getTopicForSession(sessionId) ?? undefined;
+  }
+
+  /** Sends a message, adding `message_thread_id` only when the thread is a real topic (non-null). */
+  private sendToThread(threadId: number | null | undefined, text: string, opts: Record<string, unknown> = {}): Promise<{ message_id: number }> {
+    const sendOpts: Record<string, unknown> = { ...opts };
+    if (threadId != null) sendOpts.message_thread_id = threadId;
+    return this.api.sendMessage(this.chatId, text, sendOpts);
+  }
+
   startPolling(): void {
     if (this.polling) return;
     this.polling = true;
@@ -168,10 +204,6 @@ export class TelegramBridge {
         this.logger.info("[telegram-bridge] Skipping message without text, photo, or voice");
         continue;
       }
-      if (message.message_thread_id == null) {
-        this.logger.info("[telegram-bridge] Skipping message without thread_id");
-        continue;
-      }
       if (message.from?.is_bot) {
         this.logger.info("[telegram-bridge] Skipping bot message");
         continue;
@@ -191,24 +223,49 @@ export class TelegramBridge {
         continue;
       }
 
-      const sessionId = this.topicManager.getSessionForTopic(
-        message.message_thread_id,
-      );
+      const isGeneralTopic = message.message_thread_id == null;
+
+      // General topic (no thread id): route to the General session if one exists.
+      if (isGeneralTopic) {
+        if (this.generalSessionId && rawText) {
+          this.enqueueMessage(this.generalSessionId, {
+            text: rawText,
+            routeLabel: "text",
+            originThreadId: null,
+            isGeneralTopic: true,
+          });
+          continue;
+        }
+        if (!rawText) {
+          this.logger.info("[telegram-bridge] General topic: ignoring non-text message");
+          continue;
+        }
+        this.logger.info("[telegram-bridge] General topic: no general session");
+        await this.sendToThread(
+          null,
+          "💬 No session is linked to General yet. Turn on Telegram sync for a session from the RokketWrapper sidebar, then chat here.",
+          { parse_mode: "HTML" },
+        ).catch(() => {});
+        continue;
+      }
+
+      const originThreadId = message.message_thread_id!;
+      const sessionId = this.topicManager.getSessionForTopic(originThreadId);
       if (!sessionId) {
         this.logger.info(
-          `[telegram-bridge] No session for topic ${message.message_thread_id}`,
+          `[telegram-bridge] No session for topic ${originThreadId}`,
         );
         continue;
       }
 
       if (rawText.toLowerCase() === "/restart") {
-        await this.handleRestartCommand(sessionId, message.message_thread_id);
+        await this.handleRestartCommand(sessionId, originThreadId);
         continue;
       }
 
       // Handle voice transcription
       if (hasVoice) {
-        await this.handleVoiceMessage(sessionId, message.voice!.file_id, message.message_thread_id);
+        await this.handleVoiceMessage(sessionId, message.voice!.file_id, originThreadId);
         continue;
       }
 
@@ -256,7 +313,7 @@ export class TelegramBridge {
 
       const text = rawText;
       const routeLabel = isSlashCommand ? "command" : hasPhoto ? "photo" : "text";
-      this.enqueueMessage(sessionId, { text, images, routeLabel });
+      this.enqueueMessage(sessionId, { text, images, routeLabel, originThreadId, isGeneralTopic: false });
     }
   }
 
@@ -355,26 +412,35 @@ export class TelegramBridge {
       return undefined;
     };
 
-    const notifyUnavailable = (reason: string, threadId: number | undefined) => {
+    const notifyUnavailable = (reason: string, responseThread: number | null | undefined) => {
       this.logger.info(`[telegram-bridge] unavailable for ${sessionId}: ${reason}`);
-      if (threadId == null) return;
+      if (responseThread === undefined) return;
+      const sendOpts: Record<string, unknown> = {
+        reply_markup: {
+          inline_keyboard: [[{ text: "🔄 Restart GSD", callback_data: `restart:${sessionId}` }]],
+        },
+      };
+      if (responseThread != null) sendOpts.message_thread_id = responseThread;
       this.api.sendMessage(
         this.chatId,
         `⚠️ GSD is not responding — ${reason}. Your message was received but could not be delivered.`,
-        {
-          message_thread_id: threadId,
-          reply_markup: {
-            inline_keyboard: [[{ text: "🔄 Restart GSD", callback_data: `restart:${sessionId}` }]],
-          },
-        },
+        sendOpts,
       ).catch((err: unknown) => this.logger.info(`[telegram-bridge] failed to send unavailable notice: ${err instanceof Error ? err.message : String(err)}`));
     };
 
     const deliver = async () => {
-      const threadId = this.topicManager.getTopicForSession(sessionId);
+      // Response thread: prefer the thread the message arrived on (null = General),
+      // else fall back to the session's registered topic. undefined = unknown.
+      const responseThread: number | null | undefined = msg.originThreadId !== undefined
+        ? msg.originThreadId
+        : (this.topicManager.getTopicForSession(sessionId) ?? undefined);
+      if (responseThread !== undefined) {
+        this.activeResponseThread.set(sessionId, responseThread);
+      }
+
       let current = await waitForClient();
       if (!current?.client) {
-        notifyUnavailable("the session is not running", threadId ?? undefined);
+        notifyUnavailable("the session is not running", responseThread);
         return;
       }
 
@@ -391,14 +457,14 @@ export class TelegramBridge {
         await new Promise((r) => setTimeout(r, 800));
         current = await waitForClient();
         if (!current?.client) {
-          notifyUnavailable("the session stopped while handling a previous message", threadId ?? undefined);
+          notifyUnavailable("the session stopped while handling a previous message", responseThread);
           return;
         }
       }
 
-      this.onInboundMessage?.(sessionId, msg.text, msg.images);
-      if (threadId != null) {
-        this.startTypingLoop(sessionId, threadId);
+      this.onInboundMessage?.(sessionId, msg.text, msg.images, { isGeneralTopic: msg.isGeneralTopic });
+      if (responseThread !== undefined) {
+        this.startTypingLoop(sessionId, responseThread);
       }
       this.logger.info(`[telegram-bridge] Calling prompt for ${sessionId}`);
       const promptPromise = current.client.prompt(msg.text, msg.images);
@@ -407,7 +473,7 @@ export class TelegramBridge {
       if (result === "timeout") {
         this.stopTypingLoop(sessionId);
         this.logger.info(`[telegram-bridge] prompt timed out for ${sessionId} — continuing drain`);
-        notifyUnavailable("the process stopped responding", threadId ?? undefined);
+        notifyUnavailable("the process stopped responding", responseThread);
       } else {
         this.logger.info(`[telegram-bridge] Routed ${msg.routeLabel} to ${sessionId}`);
       }
@@ -418,10 +484,10 @@ export class TelegramBridge {
         this.stopTypingLoop(sessionId);
         const errMsg = err instanceof Error ? err.message : String(err);
         this.logger.info(`[telegram-bridge] prompt error for ${sessionId}: ${redactToken(errMsg, this.botToken)}`);
-        const catchThreadId = this.topicManager.getTopicForSession(sessionId);
-        notifyUnavailable("an unexpected error occurred", catchThreadId ?? undefined);
+        notifyUnavailable("an unexpected error occurred", this.getResponseThread(sessionId));
       })
       .finally(() => {
+        this.activeResponseThread.delete(sessionId);
         this._activeDeliveries.delete(deliveryPromise);
         this.drainQueue(sessionId);
       });
@@ -434,8 +500,8 @@ export class TelegramBridge {
     title: string,
     options: string[],
   ): Promise<string | null> {
-    const threadId = this.topicManager.getTopicForSession(sessionId);
-    if (threadId == null) {
+    const threadId = this.getResponseThread(sessionId);
+    if (threadId === undefined) {
       this.logger.info(`[telegram-bridge] sendQuestion: no topic for session ${sessionId}`);
       return null;
     }
@@ -447,10 +513,11 @@ export class TelegramBridge {
     }]);
 
     try {
-      const msg = await this.api.sendMessage(this.chatId, `❓ ${title}`, {
-        message_thread_id: threadId,
+      const sendOpts: Record<string, unknown> = {
         reply_markup: { inline_keyboard: inlineKeyboard },
-      });
+      };
+      if (threadId != null) sendOpts.message_thread_id = threadId;
+      const msg = await this.api.sendMessage(this.chatId, `❓ ${title}`, sendOpts);
 
       const optionMap = new Map<string, string>();
       options.forEach((opt, i) => optionMap.set(`${callbackPrefix}${i}`, opt));
@@ -460,7 +527,7 @@ export class TelegramBridge {
           resolve,
           optionMap,
           messageId: msg.message_id,
-          threadId,
+          threadId: threadId ?? 0,
         });
       });
     } catch (err: unknown) {
@@ -544,11 +611,13 @@ export class TelegramBridge {
     pending.resolve(selectedOption);
   }
 
-  private startTypingLoop(sessionId: string, threadId: number): void {
+  private startTypingLoop(sessionId: string, threadId: number | null): void {
     if (this.typingLoops.has(sessionId)) return;
     this.turnStartMs.set(sessionId, Date.now());
     const sendAction = () => {
-      this.api.sendChatAction(this.chatId, "typing", { message_thread_id: threadId }).catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
+      const opts: Record<string, unknown> = {};
+      if (threadId != null) opts.message_thread_id = threadId;
+      this.api.sendChatAction(this.chatId, "typing", opts).catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
     };
     sendAction();
     const handle = setInterval(sendAction, this.TYPING_INTERVAL_MS);
@@ -574,8 +643,8 @@ export class TelegramBridge {
       return;
     }
 
-    const threadId = this.topicManager.getTopicForSession(sessionId);
-    if (threadId == null) {
+    const threadId = this.getResponseThread(sessionId);
+    if (threadId === undefined) {
       this.logger.info(`[telegram-bridge] handleStreamingChunk: no topic for session ${sessionId} (known sessions: ${this.topicManager.activeSessions.join(",")})`);
       return;
     }
@@ -590,7 +659,9 @@ export class TelegramBridge {
 
     if (state.messageId === null && !state.sendingPlaceholder) {
       state.sendingPlaceholder = true;
-      state.placeholderPromise = this.api.sendMessage(this.chatId, "…", { message_thread_id: threadId })
+      const sendOpts: Record<string, unknown> = {};
+      if (threadId != null) sendOpts.message_thread_id = threadId;
+      state.placeholderPromise = this.api.sendMessage(this.chatId, "…", sendOpts)
         .then((msg) => {
           state!.messageId = msg.message_id;
           state!.sendingPlaceholder = false;
@@ -629,8 +700,8 @@ export class TelegramBridge {
     if (!state && this.streamingGranularity !== "final-only") {
       return;
     }
-    const threadId = this.topicManager.getTopicForSession(sessionId);
-    if (threadId == null) {
+    const threadId = this.getResponseThread(sessionId);
+    if (threadId === undefined) {
       this.logger.info(`[telegram-bridge] handleStreamEnd: no topic for session ${sessionId} (known sessions: ${this.topicManager.activeSessions.join(",")})`);
       return;
     }
@@ -647,7 +718,9 @@ export class TelegramBridge {
       if (!resolvedMessageId) {
         this.streamingState.delete(sessionId);
         if (finalText) {
-          await this.api.sendMessage(this.chatId, text, { message_thread_id: threadId, parse_mode: "HTML" })
+          const sendOpts: Record<string, unknown> = { parse_mode: "HTML" };
+          if (threadId != null) sendOpts.message_thread_id = threadId;
+          await this.api.sendMessage(this.chatId, text, sendOpts)
             .then(() => this.logger.info(`[telegram-bridge] Sent final (no stream) for ${sessionId}`))
             .catch((err: unknown) => {
               const msg = err instanceof Error ? err.message : String(err);
@@ -674,14 +747,16 @@ export class TelegramBridge {
   }
 
   handleAgentEnd(sessionId: string): void {
-    const threadId = this.topicManager.getTopicForSession(sessionId);
-    if (threadId == null) return;
+    const threadId = this.getResponseThread(sessionId);
+    if (threadId === undefined) return;
 
     const elapsedMs = this.stopTypingLoop(sessionId);
     const elapsedStr = elapsedMs != null ? `  <i>${(elapsedMs / 1000).toFixed(1)}s</i>` : "";
     this.logger.info(`[telegram-bridge] Agent end for ${sessionId}, elapsed=${elapsedMs}ms`);
 
-    this.api.sendMessage(this.chatId, `✅ Done${elapsedStr}`, { message_thread_id: threadId, parse_mode: "HTML" })
+    const sendOpts: Record<string, unknown> = { parse_mode: "HTML" };
+    if (threadId != null) sendOpts.message_thread_id = threadId;
+    this.api.sendMessage(this.chatId, `✅ Done${elapsedStr}`, sendOpts)
       .catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
   }
 
@@ -734,8 +809,8 @@ export class TelegramBridge {
     sessionId: string,
     text: string,
   ): Promise<void> {
-    const threadId = this.topicManager.getTopicForSession(sessionId);
-    if (threadId == null) return;
+    const threadId = this.getResponseThread(sessionId);
+    if (threadId === undefined) return;
 
     // If streaming already sent/edited a message for this turn, skip the duplicate
     if (this.streamingState.has(sessionId)) return;
@@ -745,10 +820,9 @@ export class TelegramBridge {
     }
 
     try {
-      await this.api.sendMessage(this.chatId, markdownToTelegramHtml(text), {
-        message_thread_id: threadId,
-        parse_mode: "HTML",
-      });
+      const sendOpts: Record<string, unknown> = { parse_mode: "HTML" };
+      if (threadId != null) sendOpts.message_thread_id = threadId;
+      await this.api.sendMessage(this.chatId, markdownToTelegramHtml(text), sendOpts);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.info(
@@ -792,8 +866,8 @@ export class TelegramBridge {
     toolName: string,
     args: Record<string, unknown>,
   ): void {
-    const threadId = this.topicManager.getTopicForSession(sessionId);
-    if (threadId == null) return;
+    const threadId = this.getResponseThread(sessionId);
+    if (threadId === undefined) return;
 
     // Track this tool under its session so handleStreamEnd can wait for it
     let sessionTools = this.activeToolsBySession.get(sessionId);
@@ -814,13 +888,13 @@ export class TelegramBridge {
     const summary = this.toolStatusText(toolName, args);
     const messageText = `⏳ ${summary}`;
 
-    this.api.sendMessage(this.chatId, messageText, {
-      message_thread_id: threadId,
-      parse_mode: "HTML",
-    }).then((msg) => {
+    const sendOpts: Record<string, unknown> = { parse_mode: "HTML" };
+    if (threadId != null) sendOpts.message_thread_id = threadId;
+    this.api.sendMessage(this.chatId, messageText, sendOpts).then((msg) => {
+      const resolvedThreadId = threadId ?? 0;
       const tool: ActiveTool = {
         messageId: msg.message_id,
-        threadId,
+        threadId: resolvedThreadId,
         toolName,
         summary,
         startMs: Date.now(),
@@ -833,10 +907,9 @@ export class TelegramBridge {
         const durationStr = pending.durationMs != null
           ? `  <i>${(pending.durationMs / 1000).toFixed(1)}s</i>`
           : "";
-        this.api.editMessageText(this.chatId, msg.message_id, `${icon} ${summary}${durationStr}`, {
-          message_thread_id: threadId,
-          parse_mode: "HTML",
-        }).catch((err: unknown) => {
+        const editOpts: Record<string, unknown> = { parse_mode: "HTML" };
+        if (resolvedThreadId) editOpts.message_thread_id = resolvedThreadId;
+        this.api.editMessageText(this.chatId, msg.message_id, `${icon} ${summary}${durationStr}`, editOpts).catch((err: unknown) => {
           const errMsg = err instanceof Error ? err.message : String(err);
           this.logger.info(`[telegram-bridge] Tool end (deferred) edit error: ${redactToken(errMsg, this.botToken)}`);
         }).finally(() => {
@@ -870,10 +943,9 @@ export class TelegramBridge {
       : "";
     const newText = `${icon} ${tool.summary}${durationStr}`;
 
-    this.api.editMessageText(this.chatId, tool.messageId, newText, {
-      message_thread_id: tool.threadId,
-      parse_mode: "HTML",
-    }).catch((err: unknown) => {
+    const editOpts: Record<string, unknown> = { parse_mode: "HTML" };
+    if (tool.threadId) editOpts.message_thread_id = tool.threadId;
+    this.api.editMessageText(this.chatId, tool.messageId, newText, editOpts).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.info(`[telegram-bridge] Tool end edit error: ${redactToken(msg, this.botToken)}`);
     });

@@ -289,7 +289,10 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       },
     );
     this.bridge.setStreamingGranularity(telegramConfig.streamingGranularity);
-    this.bridge.setOnInboundMessage((sessionId, text, images) => {
+    this.bridge.setOnInboundMessage((sessionId, text, images, opts) => {
+      // General-topic messages are routed to the leader session but not mirrored
+      // into its webview transcript (they aren't part of that conversation's view).
+      if (opts?.isGeneralTopic) return;
       const session = this.sessions.get(sessionId);
       const webview = session?.webview;
       if (webview) {
@@ -331,8 +334,13 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         await tm.syncOff(sessionId);
         this.postToWebview(webview, { type: "state", data: { telegramSyncActive: false } } as any);
         this.output.appendLine(`[telegram-sync] Sync off for session ${sessionId}`);
-        if (this.bridge && tm.activeSessions.length === 0) {
-          this.bridge.stopPolling();
+        if (this.bridge) {
+          // Reassign the General-topic leader to the next active session, or clear it.
+          const remaining = tm.activeSessions;
+          this.bridge.setGeneralSession(remaining.length > 0 ? remaining[0] : null);
+          if (remaining.length === 0) {
+            this.bridge.stopPolling();
+          }
         }
       } else {
         const folderName = vscode.workspace.workspaceFolders?.[0]?.name ?? "Untitled";
@@ -341,6 +349,10 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         this.output.appendLine(`[telegram-sync] Sync on for session ${sessionId}`);
         if (this.bridge) {
           this.bridge.startPolling();
+          // First synced session becomes the General-topic leader.
+          if (!this.bridge.getGeneralSessionId()) {
+            this.bridge.setGeneralSession(sessionId);
+          }
         }
       }
     } catch (err: unknown) {

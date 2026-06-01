@@ -7,6 +7,10 @@ vi.mock("vscode", () => ({
       return { toString: () => path, fsPath: path };
     },
   },
+  workspace: {
+    // getWebviewHtml reads rokketWrapper.workflowDiagnostics; honor the supplied default.
+    getConfiguration: () => ({ get: (_key: string, def?: unknown) => def }),
+  },
 }));
 
 import { getNonce, getWebviewHtml } from "./html-generator";

@@ -22,6 +22,9 @@ export function getWebviewHtml(extensionUri: vscode.Uri, webview: vscode.Webview
     vscode.Uri.joinPath(extensionUri, "resources", "rokketek-logo.png")
   );
   const nonce = getNonce();
+  const workflowDiagnostics = vscode.workspace
+    .getConfiguration("rokketWrapper")
+    .get<boolean>("workflowDiagnostics", false);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -38,6 +41,7 @@ export function getWebviewHtml(extensionUri: vscode.Uri, webview: vscode.Webview
     window.GSD_SESSION_ID = ${JSON.stringify(sessionId)};
     window.GSD_LOGO_URI = ${JSON.stringify(logoUri.toString())};
     window.GSD_EXTENSION_VERSION = ${JSON.stringify(extensionVersion)};
+    window.GSD_WORKFLOW_DIAGNOSTICS = ${workflowDiagnostics ? "true" : "false"};
   </script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

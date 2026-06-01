@@ -118,6 +118,8 @@ export type ExtensionToWebviewMessage =
   | { type: "session_list_error"; message: string }
   | { type: "update_available"; version: string; currentVersion: string; releaseNotes: string; downloadUrl: string; htmlUrl: string }
   | { type: "workflow_state"; state: WorkflowState | null }
+  | { type: "workflow_live"; data: WorkflowProgressData }
+  | { type: "workflow_live_remove"; runId: string }
   | { type: "file_access_result"; results: Array<{ path: string; readable: boolean }> }
   | { type: "temp_file_saved"; path: string; name: string }
   | { type: "files_attached"; paths: string[] }
@@ -496,6 +498,45 @@ export interface WorkflowState {
   task: WorkflowStateRef | null;
   phase: string;
   autoMode: string | null;
+}
+
+// --- Live Workflow Progress (Claude Code `Workflow` fan-out, via disk watcher) ---
+
+/**
+ * A live snapshot of a Claude Code `Workflow` run's sub-agent fan-out.
+ *
+ * This is turn-independent: the extension's disk watcher (`workflow-fs-watcher`)
+ * tails the run's `journal.jsonl` on its own timer and pushes a snapshot the
+ * moment the run starts writing — well before the launching turn ends. The
+ * webview renders it as an inline card keyed by `toolCallId` (= the run id) and
+ * inserted ABOVE the launching turn in `#messagesContainer`; it is NOT attached
+ * to the originating tool segment (which doesn't exist mid-run). Distinct from
+ * {@link WorkflowState}, which is the `.gsd/STATE.md` milestone state.
+ */
+export interface WorkflowProgressData {
+  toolCallId: string;            // = runId
+  name: string;
+  description?: string;
+  phases: string[];
+  status: "launching" | "running" | "completed" | "error" | "stalled";
+  agents: WorkflowAgentProgress[];
+  plannedAgentCount: number;
+  doneAgentCount: number;
+  runningAgentCount: number;
+  logs?: string[];
+  startedAt: number;
+  updatedAt: number;
+  stale: boolean;
+}
+
+/** Per-agent progress within a {@link WorkflowProgressData} snapshot. */
+export interface WorkflowAgentProgress {
+  label: string;
+  phase?: string;
+  state: "pending" | "running" | "done" | "error";
+  tokens?: number;
+  toolCalls?: number;
+  durationMs?: number;
 }
 
 // --- Parallel Worker Progress ---

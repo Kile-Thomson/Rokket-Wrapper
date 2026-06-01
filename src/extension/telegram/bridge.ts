@@ -202,6 +202,17 @@ export class TelegramBridge {
   private async handleUpdates(updates: TelegramUpdate[]): Promise<void> {
     for (const update of updates) {
       if (update.callback_query) {
+        // Owner gate (opt-in) also covers inline-button taps: once an owner is
+        // set, only they may trigger restart/question callbacks. /whoami has no
+        // callback, so gating here doesn't block id discovery.
+        if (this.ownerId && update.callback_query.from?.id !== this.ownerId) {
+          this.logger.info(
+            `[telegram-bridge] Callback denied — sender ${update.callback_query.from?.id} is not owner ${this.ownerId}`,
+          );
+          // Ack so the client clears the button spinner instead of hanging.
+          await this.api.answerCallbackQuery(update.callback_query.id, "Not authorized").catch(() => {});
+          continue;
+        }
         await this.handleCallbackQuery(update.callback_query);
         continue;
       }

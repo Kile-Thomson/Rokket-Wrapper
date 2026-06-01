@@ -15,7 +15,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - Friendly "Topics not enabled" guidance: when you try to sync a session to a supergroup that doesn't have Topics (forum mode) turned on, the bridge now surfaces an actionable warning (open the group → Edit → enable "Topics") instead of a raw Telegram 400 error (new `TelegramNotForumError`)
 
 ### Changed
-- The owner gate is opt-in and non-breaking: existing setups keep working untouched after upgrade. Once you set an owner id, only that user's messages are forwarded; everyone else's are silently dropped. `/whoami` and `/telegram` always remain reachable. Inline-button taps (questions, restart) are not gated, matching the upstream behaviour
+- The owner gate is opt-in and non-breaking: existing setups keep working untouched after upgrade. Once you set an owner id, only that user's messages **and inline-button taps** (questions, restart) are accepted; everyone else's are silently dropped. `/whoami` and `/telegram` always remain reachable
 
 ## [0.1.20] — 2026-06-01
 

@@ -15,6 +15,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 - Telegram outbound routing now resolves a per-delivery response thread (`getResponseThread`) instead of assuming every session has a forum topic, so the bridge can reply into either a specific topic or the General topic. Existing per-topic behaviour is unchanged
 
+### Fixed
+- The "🔄 Restart GSD" button now works when the session is the General-topic leader. Previously the restart callback looked up a forum topic the General leader doesn't have, so tapping the button silently did nothing; `getResponseThread` now treats the General leader's thread as General (no `message_thread_id`), and the restart status messages omit the thread id accordingly
+- Pending-question and active-tool thread ids are stored as `number | null` rather than coercing the General topic to `0`, so follow-up message edits in General never send an invalid `message_thread_id: 0`
+
 ---
 
 ## [0.1.19] — 2026-06-01

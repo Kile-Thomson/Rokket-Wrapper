@@ -56,7 +56,8 @@ interface PendingQuestion {
 
 interface ActiveTool {
   messageId: number;
-  threadId: number;
+  // null = General topic (omit message_thread_id on follow-up edits).
+  threadId: number | null;
   toolName: string;
   summary: string;
   startMs: number;
@@ -147,7 +148,12 @@ export class TelegramBridge {
     if (this.activeResponseThread.has(sessionId)) {
       return this.activeResponseThread.get(sessionId)!;
     }
-    return this.topicManager.getTopicForSession(sessionId) ?? undefined;
+    const topic = this.topicManager.getTopicForSession(sessionId);
+    if (topic != null) return topic;
+    // The General-topic leader owns no dedicated topic; its thread is null (General)
+    // even outside an active delivery — e.g. a restart button tapped after the turn ended.
+    if (sessionId === this.generalSessionId) return null;
+    return undefined;
   }
 
   /** Sends a message, adding `message_thread_id` only when the thread is a real topic (non-null). */
@@ -550,22 +556,25 @@ export class TelegramBridge {
     }
   }
 
-  private async handleRestartCommand(sessionId: string, threadId: number): Promise<void> {
+  private async handleRestartCommand(sessionId: string, threadId: number | null): Promise<void> {
     this.logger.info(`[telegram-bridge] /restart command for ${sessionId}`);
+    // null = General topic: omit message_thread_id so the edit/send targets the chat root.
+    const editOpts: Record<string, unknown> = {};
+    if (threadId != null) editOpts.message_thread_id = threadId;
     if (!this.onRestartRequest) {
-      await this.api.sendMessage(this.chatId, "⚠️ Restart is not available.", { message_thread_id: threadId })
+      await this.sendToThread(threadId, "⚠️ Restart is not available.")
         .catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
       return;
     }
-    const statusMsg = await this.api.sendMessage(this.chatId, "🔄 Restarting GSD…", { message_thread_id: threadId })
+    const statusMsg = await this.sendToThread(threadId, "🔄 Restarting GSD…")
       .catch(() => null);
     const ok = await this.onRestartRequest(sessionId).catch(() => false);
     const resultText = ok ? "✅ GSD restarted." : "❌ Restart failed — no active session to restart.";
     if (statusMsg) {
-      await this.api.editMessageText(this.chatId, statusMsg.message_id, resultText, { message_thread_id: threadId })
+      await this.api.editMessageText(this.chatId, statusMsg.message_id, resultText, editOpts)
         .catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
     } else {
-      await this.api.sendMessage(this.chatId, resultText, { message_thread_id: threadId })
+      await this.sendToThread(threadId, resultText)
         .catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
     }
   }
@@ -576,9 +585,10 @@ export class TelegramBridge {
 
     if (data.startsWith("restart:")) {
       const sessionId = data.slice("restart:".length);
-      const threadId = this.topicManager.getTopicForSession(sessionId);
+      // getResponseThread: undefined = unknown session (bail), null = General, number = topic.
+      const threadId = this.getResponseThread(sessionId);
       await this.api.answerCallbackQuery(query.id, "Restarting…").catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
-      if (threadId != null) {
+      if (threadId !== undefined) {
         await this.handleRestartCommand(sessionId, threadId);
       }
       return;
@@ -892,7 +902,7 @@ export class TelegramBridge {
     const sendOpts: Record<string, unknown> = { parse_mode: "HTML" };
     if (threadId != null) sendOpts.message_thread_id = threadId;
     this.api.sendMessage(this.chatId, messageText, sendOpts).then((msg) => {
-      const resolvedThreadId = threadId ?? 0;
+      const resolvedThreadId = threadId ?? null;
       const tool: ActiveTool = {
         messageId: msg.message_id,
         threadId: resolvedThreadId,
@@ -909,7 +919,7 @@ export class TelegramBridge {
           ? `  <i>${(pending.durationMs / 1000).toFixed(1)}s</i>`
           : "";
         const editOpts: Record<string, unknown> = { parse_mode: "HTML" };
-        if (resolvedThreadId) editOpts.message_thread_id = resolvedThreadId;
+        if (resolvedThreadId != null) editOpts.message_thread_id = resolvedThreadId;
         this.api.editMessageText(this.chatId, msg.message_id, `${icon} ${summary}${durationStr}`, editOpts).catch((err: unknown) => {
           const errMsg = err instanceof Error ? err.message : String(err);
           this.logger.info(`[telegram-bridge] Tool end (deferred) edit error: ${redactToken(errMsg, this.botToken)}`);
@@ -945,7 +955,7 @@ export class TelegramBridge {
     const newText = `${icon} ${tool.summary}${durationStr}`;
 
     const editOpts: Record<string, unknown> = { parse_mode: "HTML" };
-    if (tool.threadId) editOpts.message_thread_id = tool.threadId;
+    if (tool.threadId != null) editOpts.message_thread_id = tool.threadId;
     this.api.editMessageText(this.chatId, tool.messageId, newText, editOpts).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.info(`[telegram-bridge] Tool end edit error: ${redactToken(msg, this.botToken)}`);

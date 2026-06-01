@@ -320,6 +320,32 @@ describe("TelegramBridge", () => {
       expect(answeredEdit![3]).not.toHaveProperty("message_thread_id");
     });
 
+    it("restart button in General routes to the leader and omits message_thread_id", async () => {
+      const onRestart = vi.fn().mockResolvedValue(true);
+      setup([], new Map(), new Map(), new Map([["s1", { client: createMockClient(), isStreaming: false }]]));
+      bridge.setGeneralSession("s1");
+      bridge.setOnRestartRequest(onRestart);
+
+      // Tap the restart button outside any active delivery (activeResponseThread is empty).
+      await bridge._testInjectUpdates([{
+        update_id: 1,
+        callback_query: {
+          id: "cbq1",
+          from: { id: 99, is_bot: false, first_name: "User" },
+          data: "restart:s1",
+        },
+      } as unknown as TelegramUpdate]);
+
+      // Restart must actually fire for the General leader…
+      expect(onRestart).toHaveBeenCalledWith("s1");
+      // …and the status message must go to General with no message_thread_id.
+      const restartingCall = (api.sendMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c) => typeof c[1] === "string" && c[1].includes("Restarting"),
+      );
+      expect(restartingCall).toBeDefined();
+      expect(restartingCall![2] ?? {}).not.toHaveProperty("message_thread_id");
+    });
+
     it("skips when no session for topic", async () => {
       setup([], new Map());
       await bridge._testInjectUpdates([{

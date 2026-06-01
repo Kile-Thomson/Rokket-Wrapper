@@ -88,6 +88,7 @@ Use the **Sync** button in the panel header to link the current session to your 
 Once connected, the bridge:
 
 - Creates a new **forum topic** per session, so each conversation stays in its own thread
+- Routes messages you send in the supergroup's **General** topic (the default thread, which has no per-session topic) to your first synced session, so you can chat without picking a topic; if no session is synced it replies with a hint to turn on sync
 - Forwards your Telegram messages to the active session and streams responses back as edited messages (controlled by `rokketWrapper.telegramStreamingGranularity`)
 - Shows **tool execution status** inline (`⏳` in-progress → `✅` done / `❌` error, with elapsed time)
 - Shows a **typing indicator** while the agent is working

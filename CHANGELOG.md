@@ -7,6 +7,20 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.20] — 2026-06-01
+
+### Added
+- Telegram General-topic routing: messages sent in the supergroup's **General** topic (the default thread, which has no per-session forum topic) now route to the first synced session instead of being silently dropped. The first session you sync becomes the General leader; if no session is synced, the bridge replies with a hint to turn on sync. Responses, the typing indicator, tool-status messages, and streamed edits all tolerate the General topic by omitting `message_thread_id`
+
+### Changed
+- Telegram outbound routing now resolves a per-delivery response thread (`getResponseThread`) instead of assuming every session has a forum topic, so the bridge can reply into either a specific topic or the General topic. Existing per-topic behaviour is unchanged
+
+### Fixed
+- The "🔄 Restart GSD" button now works when the session is the General-topic leader. Previously the restart callback looked up a forum topic the General leader doesn't have, so tapping the button silently did nothing; `getResponseThread` now treats the General leader's thread as General (no `message_thread_id`), and the restart status messages omit the thread id accordingly
+- Pending-question and active-tool thread ids are stored as `number | null` rather than coercing the General topic to `0`, so follow-up message edits in General never send an invalid `message_thread_id: 0`
+
+---
+
 ## [0.1.19] — 2026-06-01
 
 ### Added

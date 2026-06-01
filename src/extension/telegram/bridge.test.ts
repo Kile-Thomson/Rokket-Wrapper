@@ -13,6 +13,8 @@ function createMockApi(updates: TelegramUpdate[] = []): TelegramApi {
     }),
     sendMessage: vi.fn().mockResolvedValue({ message_id: 1, chat: { id: 1, type: "supergroup" } }),
     editMessageText: vi.fn().mockResolvedValue({ message_id: 1, chat: { id: 1, type: "supergroup" } }),
+    sendChatAction: vi.fn().mockResolvedValue(undefined),
+    answerCallbackQuery: vi.fn().mockResolvedValue(undefined),
     getFile: vi.fn().mockResolvedValue({ file_id: "fid", file_unique_id: "u", file_path: "photos/file_0.jpg" }),
     downloadFile: vi.fn().mockResolvedValue({ base64: "aW1hZ2VkYXRh", mimeType: "image/jpeg" }),
   } as unknown as TelegramApi;
@@ -215,15 +217,133 @@ describe("TelegramBridge", () => {
       );
     });
 
-    it("skips messages without thread_id", async () => {
-      setup();
+    it("General topic with no general session sends a hint and does not prompt", async () => {
+      const client = createMockClient();
+      setup([], new Map(), new Map(), new Map([["s1", { client, isStreaming: false }]]));
       await bridge._testInjectUpdates([{
         update_id: 1,
-        message: { message_id: 1, chat: { id: 1, type: "g" }, text: "hi" },
+        message: {
+          message_id: 1,
+          from: { id: 99, is_bot: false, first_name: "User" },
+          chat: { id: CHAT_ID, type: "supergroup" },
+          text: "hi there",
+          // no message_thread_id → General topic
+        },
       }]);
-      expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining("without thread_id"),
+      expect(client.prompt).not.toHaveBeenCalled();
+      // Hint is sent to the chat with no message_thread_id (General topic)
+      const hintCall = (api.sendMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c) => typeof c[1] === "string" && c[1].includes("No session is linked to General"),
       );
+      expect(hintCall).toBeDefined();
+      expect(hintCall![2]).not.toHaveProperty("message_thread_id");
+    });
+
+    it("routes a General topic message to the general session and omits message_thread_id", async () => {
+      const client = createMockClient();
+      setup([], new Map(), new Map(), new Map([["s1", { client, isStreaming: false }]]));
+      bridge.setGeneralSession("s1");
+      await bridge._testInjectUpdates([{
+        update_id: 1,
+        message: {
+          message_id: 1,
+          from: { id: 99, is_bot: false, first_name: "User" },
+          chat: { id: CHAT_ID, type: "supergroup" },
+          text: "hello general",
+          // no message_thread_id → General topic
+        },
+      }]);
+      expect(client.prompt).toHaveBeenCalledWith("hello general", undefined);
+      // Typing indicator for a General message must not carry a message_thread_id
+      const typingCall = (api.sendChatAction as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(typingCall).toBeDefined();
+      expect(typingCall![2]).not.toHaveProperty("message_thread_id");
+    });
+
+    it("getGeneralSessionId reflects setGeneralSession", () => {
+      setup();
+      expect(bridge.getGeneralSessionId()).toBeNull();
+      bridge.setGeneralSession("sX");
+      expect(bridge.getGeneralSessionId()).toBe("sX");
+      bridge.setGeneralSession(null);
+      expect(bridge.getGeneralSessionId()).toBeNull();
+    });
+
+    it("General-topic question flow omits message_thread_id on send and on the answered edit", async () => {
+      // Drive a real General delivery so the active response thread is null,
+      // and have the prompt fire a question mid-turn (fire-and-forget).
+      const client: BridgeClient = {
+        abort: vi.fn().mockResolvedValue(undefined),
+        prompt: vi.fn().mockImplementation(async () => {
+          // Not awaited: the answer arrives later via a callback_query update.
+          void bridge.sendQuestion("s1", "req1", "Pick one", ["A", "B"]);
+        }),
+      };
+      setup([], new Map(), new Map(), new Map([["s1", { client, isStreaming: false }]]));
+      bridge.setGeneralSession("s1");
+
+      await bridge._testInjectUpdates([{
+        update_id: 1,
+        message: {
+          message_id: 1,
+          from: { id: 99, is_bot: false, first_name: "User" },
+          chat: { id: CHAT_ID, type: "supergroup" },
+          text: "decide for me",
+          // no message_thread_id → General topic
+        },
+      }]);
+
+      // The question prompt is sent to General with no message_thread_id.
+      const questionCall = (api.sendMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c) => typeof c[1] === "string" && c[1].includes("❓ Pick one"),
+      );
+      expect(questionCall).toBeDefined();
+      expect(questionCall![2]).not.toHaveProperty("message_thread_id");
+
+      // Flush the fire-and-forget sendQuestion microtasks so the pending question is registered.
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Answer it via a callback_query — the "Answered" edit must also omit the thread id.
+      await bridge._testInjectUpdates([{
+        update_id: 2,
+        callback_query: {
+          id: "cbq1",
+          from: { id: 99, is_bot: false, first_name: "User" },
+          data: "q:req1:0",
+        },
+      } as unknown as TelegramUpdate]);
+
+      const answeredEdit = (api.editMessageText as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c) => typeof c[2] === "string" && c[2].includes("Answered: A"),
+      );
+      expect(answeredEdit).toBeDefined();
+      expect(answeredEdit![3]).not.toHaveProperty("message_thread_id");
+    });
+
+    it("restart button in General routes to the leader and omits message_thread_id", async () => {
+      const onRestart = vi.fn().mockResolvedValue(true);
+      setup([], new Map(), new Map(), new Map([["s1", { client: createMockClient(), isStreaming: false }]]));
+      bridge.setGeneralSession("s1");
+      bridge.setOnRestartRequest(onRestart);
+
+      // Tap the restart button outside any active delivery (activeResponseThread is empty).
+      await bridge._testInjectUpdates([{
+        update_id: 1,
+        callback_query: {
+          id: "cbq1",
+          from: { id: 99, is_bot: false, first_name: "User" },
+          data: "restart:s1",
+        },
+      } as unknown as TelegramUpdate]);
+
+      // Restart must actually fire for the General leader…
+      expect(onRestart).toHaveBeenCalledWith("s1");
+      // …and the status message must go to General with no message_thread_id.
+      const restartingCall = (api.sendMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c) => typeof c[1] === "string" && c[1].includes("Restarting"),
+      );
+      expect(restartingCall).toBeDefined();
+      expect(restartingCall![2] ?? {}).not.toHaveProperty("message_thread_id");
     });
 
     it("skips when no session for topic", async () => {

@@ -8,7 +8,7 @@ import type { IAgentProvider } from "./provider/IAgentProvider";
 
 import type { ExtensionToWebviewMessage } from "../shared/types";
 import { TopicManager, type TopicManagerLogger } from "./telegram/topicManager";
-import { TelegramApi, redactToken } from "./telegram/api";
+import { TelegramApi, redactToken, TelegramNotForumError } from "./telegram/api";
 import { loadTelegramConfig } from "./telegram/config";
 import { TelegramBridge } from "./telegram/bridge";
 import { TranscriptionError } from "./openai/transcribe";
@@ -289,6 +289,7 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       },
     );
     this.bridge.setStreamingGranularity(telegramConfig.streamingGranularity);
+    if (telegramConfig.ownerId) this.bridge.setOwnerId(telegramConfig.ownerId);
     this.bridge.setOnInboundMessage((sessionId, text, images, opts) => {
       // General-topic messages are routed to the leader session but not mirrored
       // into its webview transcript (they aren't part of that conversation's view).
@@ -358,11 +359,30 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         }
       }
     } catch (err: unknown) {
+      if (err instanceof TelegramNotForumError) {
+        this.output.appendLine(
+          "[telegram-sync] Group is not a forum — Topics not enabled; prompting user to enable Topics",
+        );
+        vscode.window.showWarningMessage(
+          "Telegram sync couldn't create a topic because your group doesn't have Topics enabled. " +
+            'Open your Telegram group → Edit → turn on "Topics", then click the sync button again.',
+        );
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       const config = vscode.workspace.getConfiguration("rokketWrapper");
       const telegramConfig = await loadTelegramConfig(this.context.secrets, config);
       const redacted = telegramConfig ? redactToken(msg, telegramConfig.botToken) : msg;
       this.output.appendLine(`[telegram-sync] Error: ${redacted}`);
+    }
+  }
+
+  /** Persist the Telegram owner id and live-update the running bridge. */
+  private async setTelegramOwnerIdConfig(ownerId: number): Promise<void> {
+    const config = vscode.workspace.getConfiguration("rokketWrapper");
+    await config.update("telegramOwnerId", ownerId, vscode.ConfigurationTarget.Global);
+    if (this.bridge) {
+      this.bridge.setOwnerId(ownerId || null);
     }
   }
 
@@ -984,6 +1004,12 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       case "set_telegram_bot_token":
         if (typeof msg.token === "string" && msg.token.trim()) {
           await this.context.secrets.store("gsd.telegramBotToken", msg.token.trim());
+        }
+        break;
+
+      case "set_telegram_owner_id":
+        if (typeof msg.ownerId === "number" && Number.isFinite(msg.ownerId)) {
+          await this.setTelegramOwnerIdConfig(Math.trunc(msg.ownerId));
         }
         break;
 

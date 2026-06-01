@@ -98,6 +98,25 @@ export class TelegramMigrationError extends Error {
   }
 }
 
+/**
+ * Thrown when a forum method (e.g. createForumTopic) targets a supergroup that
+ * does not have Topics enabled. Telegram returns `400 Bad Request: the chat is
+ * not a forum`. The fix is a one-time toggle in the group settings, not a
+ * re-setup, so callers should surface an actionable "enable Topics" message
+ * rather than the raw 400. Carries no token, so it is safe to log unredacted.
+ */
+export class TelegramNotForumError extends Error {
+  constructor(
+    readonly status: number,
+    readonly description: string,
+  ) {
+    super(
+      "Telegram supergroup does not have Topics enabled — enable Topics to create forum topics",
+    );
+    this.name = "TelegramNotForumError";
+  }
+}
+
 export class TelegramApi {
   private readonly baseUrl: string;
 
@@ -140,6 +159,9 @@ export class TelegramApi {
       const migrateToChatId = data.parameters?.migrate_to_chat_id;
       if (migrateToChatId != null) {
         throw new TelegramMigrationError(migrateToChatId, response.status, desc);
+      }
+      if (/not a forum/i.test(desc)) {
+        throw new TelegramNotForumError(response.status, desc);
       }
       const retryHint =
         data.parameters?.retry_after != null

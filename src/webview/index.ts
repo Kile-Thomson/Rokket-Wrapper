@@ -202,6 +202,11 @@ root.innerHTML = `
                   <button class="gsd-settings-voice-key-save" id="telegramTokenSave">Save</button>
                 </div>
                 <span class="gsd-settings-voice-key-status" id="telegramTokenStatus"></span>
+                <div class="gsd-settings-voice-key-row">
+                  <input type="text" class="gsd-settings-voice-key-input" id="telegramOwnerInput" placeholder="Your Telegram user ID (/whoami)" autocomplete="off" inputmode="numeric" />
+                  <button class="gsd-settings-voice-key-save" id="telegramOwnerSave">Save</button>
+                </div>
+                <span class="gsd-settings-voice-key-status" id="telegramOwnerStatus"></span>
               </div>
             </div>
           </div>
@@ -313,6 +318,9 @@ const voiceAzureRegionInput = document.getElementById("voiceAzureRegionInput") a
 const telegramTokenInput = document.getElementById("telegramTokenInput") as HTMLInputElement;
 const telegramTokenSave = document.getElementById("telegramTokenSave")!;
 const telegramTokenStatus = document.getElementById("telegramTokenStatus")!;
+const telegramOwnerInput = document.getElementById("telegramOwnerInput") as HTMLInputElement;
+const telegramOwnerSave = document.getElementById("telegramOwnerSave")!;
+const telegramOwnerStatus = document.getElementById("telegramOwnerStatus")!;
 const voiceRecordingEl = document.getElementById("voiceRecording")!;
 const voiceRecordingTime = document.getElementById("voiceRecordingTime")!;
 const voiceCancelBtn = document.getElementById("voiceCancelBtn")!;
@@ -645,6 +653,23 @@ telegramTokenSave.addEventListener("click", (e) => {
   setTimeout(() => { telegramTokenStatus.textContent = ""; }, 2000);
 });
 telegramTokenInput.addEventListener("click", (e) => e.stopPropagation());
+
+telegramOwnerSave.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const raw = telegramOwnerInput.value.trim();
+  if (!raw) return;
+  const ownerId = parseInt(raw, 10);
+  if (Number.isNaN(ownerId)) {
+    telegramOwnerStatus.textContent = "Not a number";
+    setTimeout(() => { telegramOwnerStatus.textContent = ""; }, 2000);
+    return;
+  }
+  vscode.postMessage({ type: "set_telegram_owner_id", ownerId } as WebviewToExtensionMessage);
+  telegramOwnerInput.value = "";
+  telegramOwnerStatus.textContent = "Saved!";
+  setTimeout(() => { telegramOwnerStatus.textContent = ""; }, 2000);
+});
+telegramOwnerInput.addEventListener("click", (e) => e.stopPropagation());
 
 // ============================================================
 // Slash command menu — input listener

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { TelegramApi, redactToken, TelegramMigrationError } from "./api";
+import { TelegramApi, redactToken, TelegramMigrationError, TelegramNotForumError } from "./api";
 
 const TOKEN = "123456:ABC-DEF";
 
@@ -225,6 +225,21 @@ describe("TelegramApi", () => {
       expect(migErr.migrateToChatId).toBe(-1009876543210);
       expect(migErr.status).toBe(400);
       expect(migErr.description).toBe("group chat was upgraded");
+    });
+
+    it("throws TelegramNotForumError when the group is not a forum", async () => {
+      globalThis.fetch = mockFetch(
+        { ok: false, description: "Bad Request: the chat is not a forum" },
+        400,
+      );
+
+      const err = await api
+        .createForumTopic(-100123, "Topic")
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(TelegramNotForumError);
+      const notForum = err as TelegramNotForumError;
+      expect(notForum.status).toBe(400);
+      expect(notForum.description).toContain("not a forum");
     });
 
     it("redacts token in network errors", async () => {

@@ -82,6 +82,10 @@ describe("TelegramBridge", () => {
       BOT_TOKEN,
       CHAT_ID,
     );
+    // Inbound fixtures use sender id 99; set it as the owner so the owner gate
+    // passes and tests exercise the routing paths. Gate-specific tests below
+    // override the owner (or clear it) to assert the gated behavior.
+    bridge.setOwnerId(99);
   }
 
   describe("polling", () => {
@@ -344,6 +348,99 @@ describe("TelegramBridge", () => {
       );
       expect(restartingCall).toBeDefined();
       expect(restartingCall![2] ?? {}).not.toHaveProperty("message_thread_id");
+    });
+
+    it("owner gate drops a callback (restart) from a non-owner sender", async () => {
+      const onRestart = vi.fn().mockResolvedValue(true);
+      setup([], new Map(), new Map(), new Map([["s1", { client: createMockClient(), isStreaming: false }]]));
+      bridge.setGeneralSession("s1");
+      bridge.setOnRestartRequest(onRestart);
+      bridge.setOwnerId(99); // owner is 99; the tap below comes from someone else
+
+      await bridge._testInjectUpdates([{
+        update_id: 1,
+        callback_query: {
+          id: "cbq1",
+          from: { id: 12345, is_bot: false, first_name: "Intruder" },
+          data: "restart:s1",
+        },
+      } as unknown as TelegramUpdate]);
+
+      // Side-effectful action must not fire for a non-owner…
+      expect(onRestart).not.toHaveBeenCalled();
+      // …and the callback is dismissed with a "Not authorized" ack.
+      expect(api.answerCallbackQuery).toHaveBeenCalledWith("cbq1", "Not authorized");
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining("Callback denied"),
+      );
+    });
+
+    it("/whoami replies with the sender id and bypasses the owner gate", async () => {
+      const client = createMockClient();
+      setup([], new Map([[200, "s1"]]), new Map(), new Map([["s1", { client, isStreaming: false }]]));
+      bridge.setOwnerId(null); // no owner configured — /whoami must still work
+      await bridge._testInjectUpdates([{
+        update_id: 1,
+        message: {
+          message_id: 1,
+          from: { id: 4242, is_bot: false, first_name: "User", username: "neo" },
+          chat: { id: CHAT_ID, type: "supergroup" },
+          text: "/whoami",
+          message_thread_id: 200,
+        },
+      }]);
+      const whoamiCall = (api.sendMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c) => typeof c[1] === "string" && c[1].includes("Your Telegram user ID"),
+      );
+      expect(whoamiCall).toBeDefined();
+      expect(whoamiCall![1]).toContain("4242");
+      expect(whoamiCall![1]).toContain("@neo");
+      expect(client.prompt).not.toHaveBeenCalled();
+    });
+
+    it("owner gate is opt-in — routes normally when no owner is configured", async () => {
+      const client = createMockClient();
+      setup([], new Map([[200, "s1"]]), new Map(), new Map([["s1", { client, isStreaming: false }]]));
+      bridge.setOwnerId(null); // no owner configured — bot stays open
+      await bridge._testInjectUpdates([{
+        update_id: 1,
+        message: {
+          message_id: 1,
+          from: { id: 99, is_bot: false, first_name: "User" },
+          chat: { id: CHAT_ID, type: "supergroup" },
+          text: "hello",
+          message_thread_id: 200,
+        },
+      }]);
+      expect(client.prompt).toHaveBeenCalled();
+      // No gate hint when the gate is disabled.
+      const hint = (api.sendMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+        (c) => typeof c[1] === "string" && c[1].includes("No owner ID configured"),
+      );
+      expect(hint).toBeUndefined();
+    });
+
+    it("owner gate silently drops a message from a non-owner sender", async () => {
+      const client = createMockClient();
+      setup([], new Map([[200, "s1"]]), new Map(), new Map([["s1", { client, isStreaming: false }]]));
+      bridge.setOwnerId(12345); // owner is someone else
+      await bridge._testInjectUpdates([{
+        update_id: 1,
+        message: {
+          message_id: 1,
+          from: { id: 99, is_bot: false, first_name: "Intruder" },
+          chat: { id: CHAT_ID, type: "supergroup" },
+          text: "hello",
+          message_thread_id: 200,
+        },
+      }]);
+      expect(client.prompt).not.toHaveBeenCalled();
+      // No "not authorized" reply on mismatch — silent drop, only a log line.
+      const anyReply = (api.sendMessage as ReturnType<typeof vi.fn>).mock.calls.length;
+      expect(anyReply).toBe(0);
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining("is not owner"),
+      );
     });
 
     it("skips when no session for topic", async () => {

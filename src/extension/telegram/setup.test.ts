@@ -166,7 +166,29 @@ describe("runTelegramSetup", () => {
       chatId: CHAT.id,
       chatTitle: CHAT.title,
       streamingGranularity: "throttled",
+      ownerId: 0,
     });
+  });
+
+  it("captures the detection-message sender as the owner", async () => {
+    inputBoxQueue = [TOKEN];
+    mockGetMe.mockResolvedValue(BOT_USER);
+    mockGetUpdates.mockResolvedValue([
+      {
+        update_id: 1,
+        message: {
+          message_id: 1,
+          chat: { id: CHAT.id, title: CHAT.title, type: "supergroup" },
+          from: { id: 424242, is_bot: false, first_name: "Owner" },
+        },
+      },
+    ]);
+    mockGetChatMember.mockResolvedValue({ status: "administrator", user: BOT_USER });
+    mockSendMessage.mockResolvedValue({ message_id: 2, chat: CHAT });
+
+    await runTelegramSetup(mockContext());
+
+    expect(savedConfig?.ownerId).toBe(424242);
   });
 
   it("aborts when user cancels step 1 modal", async () => {
@@ -233,10 +255,12 @@ describe("runTelegramSetup", () => {
     mockGetChatMember.mockResolvedValue({ status: "administrator", user: BOT_USER });
     mockSendMessage.mockResolvedValue({ message_id: 2, chat: CHAT });
 
-    // First showInputBox returns token, second returns manual group ID
+    // First showInputBox returns token, second returns manual group ID,
+    // third returns the optional manual owner id.
     mockShowInputBox
       .mockResolvedValueOnce(TOKEN)
-      .mockResolvedValueOnce(String(CHAT.id));
+      .mockResolvedValueOnce(String(CHAT.id))
+      .mockResolvedValueOnce("424242");
 
     let callCount = 0;
     mockWithProgress.mockImplementation(async (_opts: unknown, task: (p: unknown, c: vscode.CancellationToken) => Promise<unknown>) => {
@@ -250,9 +274,10 @@ describe("runTelegramSetup", () => {
 
     await runTelegramSetup(mockContext());
 
-    expect(mockShowInputBox).toHaveBeenCalledTimes(2);
+    expect(mockShowInputBox).toHaveBeenCalledTimes(3);
     expect(savedConfig).not.toBeNull();
     expect(savedConfig?.chatId).toBe(CHAT.id);
+    expect(savedConfig?.ownerId).toBe(424242);
   });
 
   it("offers voice setup after completion", async () => {
@@ -319,7 +344,7 @@ describe("runTelegramSetup", () => {
 
 describe("updateTelegramStatusBar", () => {
   it("appends Telegram status to tooltip when config exists", async () => {
-    savedConfig = { botToken: TOKEN, botUsername: "testbot", chatId: CHAT.id, chatTitle: CHAT.title, streamingGranularity: "throttled" };
+    savedConfig = { botToken: TOKEN, botUsername: "testbot", chatId: CHAT.id, chatTitle: CHAT.title, streamingGranularity: "throttled", ownerId: 0 };
     const statusBar = { tooltip: "RokketWrapper" } as vscode.StatusBarItem;
 
     await updateTelegramStatusBar(statusBar, mockContext());

@@ -39,6 +39,7 @@ const SAMPLE_CONFIG: TelegramConfig = {
   chatId: -1001234567890,
   chatTitle: "Test Group",
   streamingGranularity: "throttled",
+  ownerId: 0,
 };
 
 describe("TelegramConfig", () => {
@@ -91,6 +92,39 @@ describe("TelegramConfig", () => {
     await clearTelegramConfig(secrets, config, GLOBAL_TARGET);
     const result = await loadTelegramConfig(secrets, config);
     expect(result).toBeNull();
+  });
+
+  it("saveTelegramConfig persists a truthy ownerId and load round-trips it", async () => {
+    const withOwner: TelegramConfig = { ...SAMPLE_CONFIG, ownerId: 987654321 };
+    await saveTelegramConfig(secrets, config, withOwner, GLOBAL_TARGET);
+    expect(config.get("telegramOwnerId")).toBe(987654321);
+    const loaded = await loadTelegramConfig(secrets, config);
+    expect(loaded?.ownerId).toBe(987654321);
+  });
+
+  it("saveTelegramConfig skips persisting a zero ownerId", async () => {
+    await saveTelegramConfig(secrets, config, SAMPLE_CONFIG, GLOBAL_TARGET);
+    expect(config.get("telegramOwnerId")).toBeUndefined();
+    const loaded = await loadTelegramConfig(secrets, config);
+    expect(loaded?.ownerId).toBe(0);
+  });
+
+  it("saveTelegramConfig clears a previously persisted ownerId when re-saved with zero", async () => {
+    await saveTelegramConfig(secrets, config, { ...SAMPLE_CONFIG, ownerId: 555 }, GLOBAL_TARGET);
+    expect(config.get("telegramOwnerId")).toBe(555);
+    // Re-saving with ownerId 0 (owner removed) must clear the stale key so the
+    // bot re-opens rather than staying locked to the previous owner.
+    await saveTelegramConfig(secrets, config, { ...SAMPLE_CONFIG, ownerId: 0 }, GLOBAL_TARGET);
+    expect(config.get("telegramOwnerId")).toBeUndefined();
+    const loaded = await loadTelegramConfig(secrets, config);
+    expect(loaded?.ownerId).toBe(0);
+  });
+
+  it("clearTelegramConfig removes a persisted ownerId", async () => {
+    const withOwner: TelegramConfig = { ...SAMPLE_CONFIG, ownerId: 555 };
+    await saveTelegramConfig(secrets, config, withOwner, GLOBAL_TARGET);
+    await clearTelegramConfig(secrets, config, GLOBAL_TARGET);
+    expect(config.get("telegramOwnerId")).toBeUndefined();
   });
 
   it("bot token is never stored in workspace config", async () => {

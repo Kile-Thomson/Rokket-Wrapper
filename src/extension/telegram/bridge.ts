@@ -74,6 +74,8 @@ export class TelegramBridge {
   private readonly processingSession = new Set<string>();
   /** The session that owns the General topic (no thread id). null = none. */
   private generalSessionId: string | null = null;
+  /** Telegram user id allowed to drive the bot. null = no owner gate. */
+  private ownerId: number | null = null;
   // Per-session response thread captured while a message is being delivered.
   // null = General topic (omit message_thread_id), number = a specific topic thread.
   private readonly activeResponseThread = new Map<string, number | null>();
@@ -139,6 +141,10 @@ export class TelegramBridge {
     this.logger.info(`[telegram-bridge] General session set to ${sessionId}`);
   }
 
+  setOwnerId(id: number | null): void {
+    this.ownerId = id;
+  }
+
   /**
    * Resolves where a session's outbound messages should go.
    * `undefined` = thread unknown (caller should bail), `null` = General topic
@@ -196,6 +202,17 @@ export class TelegramBridge {
   private async handleUpdates(updates: TelegramUpdate[]): Promise<void> {
     for (const update of updates) {
       if (update.callback_query) {
+        // Owner gate (opt-in) also covers inline-button taps: once an owner is
+        // set, only they may trigger restart/question callbacks. /whoami has no
+        // callback, so gating here doesn't block id discovery.
+        if (this.ownerId && update.callback_query.from?.id !== this.ownerId) {
+          this.logger.info(
+            `[telegram-bridge] Callback denied — sender ${update.callback_query.from?.id} is not owner ${this.ownerId}`,
+          );
+          // Ack so the client clears the button spinner instead of hanging.
+          await this.api.answerCallbackQuery(update.callback_query.id, "Not authorized").catch(() => {});
+          continue;
+        }
         await this.handleCallbackQuery(update.callback_query);
         continue;
       }
@@ -227,6 +244,29 @@ export class TelegramBridge {
       );
       if (rawText.toLowerCase().startsWith("/telegram")) {
         this.logger.info("[telegram-bridge] Skipping /telegram command");
+        continue;
+      }
+
+      // /whoami is handled before the owner gate so anyone can discover their id.
+      if (rawText.toLowerCase() === "/whoami") {
+        const userId = message.from?.id;
+        const username = message.from?.username ? ` (@${message.from.username})` : "";
+        await this.sendToThread(
+          message.message_thread_id ?? null,
+          `Your Telegram user ID: \`${String(userId)}\`${username}`,
+          { parse_mode: "Markdown" },
+        ).catch(() => {});
+        continue;
+      }
+
+      // Owner gate (opt-in): only enforced once an owner is configured. With no
+      // owner set the bot stays open as before; setting an owner locks it to
+      // that sender. Runs after /whoami and /telegram so those stay reachable.
+      // Wrong sender → log and drop silently (mirrors gsd-vscode, no reply).
+      if (this.ownerId && message.from?.id !== this.ownerId) {
+        this.logger.info(
+          `[telegram-bridge] Message denied — sender ${message.from?.id} is not owner ${this.ownerId}`,
+        );
         continue;
       }
 
@@ -582,6 +622,9 @@ export class TelegramBridge {
   private async handleCallbackQuery(query: CallbackQuery): Promise<void> {
     const data = query.data;
     if (!data) return;
+
+    // Note: the owner gate for callbacks lives in handleUpdates (the single
+    // dispatch choke point), so non-owner taps never reach this handler.
 
     if (data.startsWith("restart:")) {
       const sessionId = data.slice("restart:".length);

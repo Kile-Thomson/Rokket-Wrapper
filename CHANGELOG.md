@@ -7,6 +7,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.19] — 2026-06-01
+
+### Added
+- Telegram supergroup migration self-healing: when a group is upgraded to a supergroup (its chat id changes), forum-topic creation now detects the `migrate_to_chat_id` response, retries once against the new chat id, retargets the bridge, and persists the new group id to settings. Only topic creation self-heals — other Telegram API calls still surface the migration error
+
+---
+
 ## [0.1.18] — 2026-06-01
 
 ### Added

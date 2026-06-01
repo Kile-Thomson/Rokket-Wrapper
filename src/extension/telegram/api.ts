@@ -74,11 +74,28 @@ interface TelegramResponse<T> {
   ok: boolean;
   result?: T;
   description?: string;
-  parameters?: { retry_after?: number };
+  parameters?: { retry_after?: number; migrate_to_chat_id?: number };
 }
 
 export function redactToken(msg: string, token: string): string {
   return msg.replaceAll(token, "bot***");
+}
+
+/**
+ * Thrown when a Telegram group is upgraded to a supergroup and its chat id
+ * changes. Callers can self-heal by retrying against `migrateToChatId`.
+ */
+export class TelegramMigrationError extends Error {
+  constructor(
+    readonly migrateToChatId: number,
+    readonly status: number,
+    readonly description: string,
+  ) {
+    super(
+      `Telegram chat was upgraded to a supergroup — migrate to chat ID ${migrateToChatId}`,
+    );
+    this.name = "TelegramMigrationError";
+  }
 }
 
 export class TelegramApi {
@@ -120,6 +137,10 @@ export class TelegramApi {
 
     if (!response.ok || !data.ok) {
       const desc = data.description ?? "unknown error";
+      const migrateToChatId = data.parameters?.migrate_to_chat_id;
+      if (migrateToChatId != null) {
+        throw new TelegramMigrationError(migrateToChatId, response.status, desc);
+      }
       const retryHint =
         data.parameters?.retry_after != null
           ? ` (retry after ${data.parameters.retry_after}s)`

@@ -237,7 +237,25 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
       info: (msg: string) => this.output.appendLine(`[telegram-topic] ${msg}`),
       warn: (msg: string) => this.output.appendLine(`[telegram-topic] WARN: ${msg}`),
     };
-    this.topicManager = new TopicManager(api, telegramConfig.chatId, vscode.env.machineId, logger, this.context.globalState);
+    this.topicManager = new TopicManager(
+      api,
+      telegramConfig.chatId,
+      vscode.env.machineId,
+      logger,
+      this.context.globalState,
+      async (newChatId: number) => {
+        this.bridge?.setChatId(newChatId);
+        try {
+          await vscode.workspace
+            .getConfiguration("rokketWrapper")
+            .update("telegramGroupId", newChatId, vscode.ConfigurationTarget.Global);
+          this.output.appendLine(`[telegram-topic] Persisted migrated group id ${newChatId}`);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.output.appendLine(`[telegram-topic] WARN: failed to persist migrated group id: ${msg}`);
+        }
+      },
+    );
 
     const bridgeLogger: TopicManagerLogger = {
       info: (msg: string) => this.output.appendLine(`[telegram-bridge] ${msg}`),

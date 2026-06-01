@@ -104,6 +104,14 @@ export class TelegramBridge {
     this.streamingGranularity = value;
   }
 
+  /**
+   * Retargets the bridge at a new chat id after a supergroup migration so
+   * subsequent sends land in the upgraded chat.
+   */
+  setChatId(chatId: number | string): void {
+    this.chatId = chatId;
+  }
+
   setOnInboundMessage(cb: InboundMessageCallback): void {
     this.onInboundMessage = cb;
   }

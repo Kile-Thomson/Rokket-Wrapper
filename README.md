@@ -38,10 +38,68 @@ A VS Code extension that provides a rich GUI for Claude Code CLI and Codex CLI �
 
 ### Telegram Setup
 
-1. Create a bot via [@BotFather](https://t.me/botfather) and copy the bot token
-2. Add the bot to a **Supergroup** — regular groups won't work (convert via Group Settings → Advanced → Topics if needed)
-3. Type `/telegram` in the chat input — the setup wizard walks through token entry, group detection, and admin verification (also accessible via the VS Code Command Palette as **RokketWrapper: Telegram Setup**). You can also paste your bot token directly in **Settings → Telegram**
-4. Use the **Sync** button in the panel header to link the current session to your Telegram group
+Remote control streams each Claude session into its own **forum topic** in a Telegram supergroup, so the chat must be set up correctly first. The steps below get you from zero to a connected bot.
+
+**Prerequisites:**
+
+- A **Telegram bot** created via [@BotFather](https://t.me/botfather) — you'll need the bot token
+- A **Telegram supergroup with Topics (forum mode) enabled** — the bridge creates one topic per session so conversations don't mix
+- The bot added to that supergroup as an **administrator** with the **Manage Topics** permission
+- Optional, for voice messages: an API key for your chosen transcription provider (OpenAI, Azure, or xAI)
+
+#### 1. Create a bot
+
+1. Open Telegram and start a chat with [@BotFather](https://t.me/botfather)
+2. Send `/newbot`
+3. Give it a **display name** (anything, e.g. "My RokketWrapper Bot")
+4. Give it a **username** — it must end in `bot` (e.g. `my_rokket_bot`)
+5. BotFather replies with a **token** like `123456789:ABCdefGHI...` — copy it; you'll paste it in step 4
+
+#### 2. Create the right kind of chat — a supergroup with Topics
+
+A plain group will **not** work. The extension creates one forum topic per session, which requires a **supergroup with Topics (forum mode) enabled**.
+
+1. In Telegram, create a **New Group** and add your bot as a member
+2. Open the group, tap/click the group name to open **group info**, then **Edit** (pencil icon)
+3. Turn on the **Topics** toggle and save — Telegram automatically upgrades the group to a supergroup
+   - On some clients the toggle lives under **Edit → Group Type** or **Manage Group**
+   - The upgrade changes the group's internal chat ID; the extension self-heals this automatically, so you don't need to re-run setup if it happens after connecting
+
+#### 3. Make the bot an admin with Manage Topics
+
+The bot must be an **administrator** to read group messages and create/close topics.
+
+1. Group info → **Administrators** → **Add Admin** → select your bot
+2. Ensure the **Manage Topics** permission is enabled (it's on by default for admins) — without it the bot can't create per-session topics
+
+#### 4. Connect the token
+
+Set the bot token one of two ways — either is fine, and both store the token in VS Code **secret storage** (never an editable setting):
+
+- **Settings menu** — open the panel's settings menu (the gear icon), paste the token into the **Telegram** field, and click **Save**
+- **Setup wizard** — type `/telegram` in the chat input (also available via the Command Palette as **RokketWrapper: Telegram Setup**). The wizard walks through bot creation, validates the token, listens for a message to auto-detect your group, and verifies the bot's admin status
+
+#### 5. Link a session
+
+Use the **Sync** button in the panel header to link the current session to your Telegram group. A new forum topic is created for that session, and the bot posts a confirmation message in the group.
+
+#### How it works
+
+Once connected, the bridge:
+
+- Creates a new **forum topic** per session, so each conversation stays in its own thread
+- Forwards your Telegram messages to the active session and streams responses back as edited messages (controlled by `rokketWrapper.telegramStreamingGranularity`)
+- Shows **tool execution status** inline (`⏳` in-progress → `✅` done / `❌` error, with elapsed time)
+- Shows a **typing indicator** while the agent is working
+- Presents the agent's multiple-choice questions as **inline Telegram buttons**
+
+#### Voice messages
+
+Send a voice message in the group and the bridge downloads the audio, transcribes it with your configured provider (`rokketWrapper.voiceTranscriptionProvider` — `openai`, `azure`, or `xai`), and feeds the transcript to the agent as a normal prompt. You'll see a `🎙️ Transcribing…` status while it works. If no provider key is set, voice messages are ignored with a prompt to configure one.
+
+#### Photo support
+
+Photos sent to the group are downloaded and injected directly into the prompt as image attachments.
 
 ## Configuration
 

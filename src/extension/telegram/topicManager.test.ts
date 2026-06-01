@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TopicManager } from "./topicManager";
+import { TelegramMigrationError } from "./api";
 import type { TelegramApi } from "./api";
 import type { GlobalStateStore, TopicRegistryEntry } from "./topicManager";
 
@@ -92,6 +93,80 @@ describe("TopicManager", () => {
       await manager.syncOff("s1");
       expect(api.deleteForumTopic).toHaveBeenCalledWith(CHAT_ID, 100);
       expect(manager.getTopicForSession("s1")).toBeUndefined();
+    });
+  });
+
+  describe("supergroup migration", () => {
+    const NEW_CHAT_ID = -1009876543210;
+
+    function migrateOnce(): void {
+      (api.createForumTopic as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+        Promise.reject(
+          new TelegramMigrationError(NEW_CHAT_ID, 400, "group chat was upgraded"),
+        ),
+      );
+    }
+
+    it("retries topic creation against the migrated chat id and succeeds", async () => {
+      migrateOnce();
+      const threadId = await manager.syncOn("s1", "MyProject");
+
+      expect(threadId).toBe(100);
+      expect(api.createForumTopic).toHaveBeenCalledTimes(2);
+      // first attempt against the old chat, retry against the new one
+      expect(api.createForumTopic).toHaveBeenNthCalledWith(1, CHAT_ID, "MyProject");
+      expect(api.createForumTopic).toHaveBeenNthCalledWith(2, NEW_CHAT_ID, "MyProject");
+    });
+
+    it("invokes onChatMigrated with the new chat id", async () => {
+      const onChatMigrated = vi.fn().mockResolvedValue(undefined);
+      manager = new TopicManager(api, CHAT_ID, MACHINE_ID, undefined, undefined, onChatMigrated);
+      migrateOnce();
+
+      await manager.syncOn("s1", "MyProject");
+
+      expect(onChatMigrated).toHaveBeenCalledTimes(1);
+      expect(onChatMigrated).toHaveBeenCalledWith(NEW_CHAT_ID);
+    });
+
+    it("subsequent topic creation targets the new chat id after migration", async () => {
+      migrateOnce();
+      await manager.syncOn("s1", "MyProject");
+      await manager.syncOn("s2", "MyProject");
+
+      // s2 created directly against the migrated chat — no further migration
+      expect(api.createForumTopic).toHaveBeenLastCalledWith(NEW_CHAT_ID, "MyProject #2");
+    });
+
+    it("swallows onChatMigrated callback errors and still retries", async () => {
+      const onChatMigrated = vi.fn().mockRejectedValue(new Error("persist failed"));
+      manager = new TopicManager(api, CHAT_ID, MACHINE_ID, undefined, undefined, onChatMigrated);
+      migrateOnce();
+
+      const threadId = await manager.syncOn("s1", "MyProject");
+
+      expect(threadId).toBe(100);
+      expect(api.createForumTopic).toHaveBeenCalledTimes(2);
+    });
+
+    it("propagates non-migration errors without retrying", async () => {
+      (api.createForumTopic as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error("Bad Request: chat not found"),
+      );
+
+      await expect(manager.syncOn("s1", "MyProject")).rejects.toThrow("chat not found");
+      expect(api.createForumTopic).toHaveBeenCalledTimes(1);
+    });
+
+    it("propagates a second migration failure on retry", async () => {
+      (api.createForumTopic as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new TelegramMigrationError(NEW_CHAT_ID, 400, "upgraded"))
+        .mockRejectedValueOnce(new TelegramMigrationError(NEW_CHAT_ID, 400, "upgraded again"));
+
+      await expect(manager.syncOn("s1", "MyProject")).rejects.toBeInstanceOf(
+        TelegramMigrationError,
+      );
+      expect(api.createForumTopic).toHaveBeenCalledTimes(2);
     });
   });
 

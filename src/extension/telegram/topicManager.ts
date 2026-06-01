@@ -1,4 +1,5 @@
 import type { TelegramApi, ForumTopic } from "./api";
+import { TelegramMigrationError } from "./api";
 
 const TELEGRAM_TOPIC_NAME_LIMIT = 128;
 const TOPIC_REGISTRY_KEY = "gsd.telegram.topicRegistry";
@@ -33,15 +34,46 @@ export class TopicManager {
   private readonly _machineId: string;
   private readonly globalState?: GlobalStateStore;
 
+  private chatId: number | string;
+
   constructor(
     private readonly api: TelegramApi,
-    private readonly chatId: number | string,
+    chatId: number | string,
     machineId: string,
     private readonly logger: TopicManagerLogger = noopLogger,
     globalState?: GlobalStateStore,
+    private readonly onChatMigrated?: (newChatId: number) => void | Promise<void>,
   ) {
+    this.chatId = chatId;
     this._machineId = machineId;
     this.globalState = globalState;
+  }
+
+  /**
+   * Creates a forum topic, self-healing once if the group has been upgraded to
+   * a supergroup. On {@link TelegramMigrationError} it adopts the new chat id,
+   * notifies {@link onChatMigrated} (swallowing callback errors), and retries
+   * `createForumTopic` exactly once. Non-migration errors and a second failure
+   * propagate to the caller.
+   */
+  private async createTopicWithMigration(topicName: string): Promise<ForumTopic> {
+    try {
+      return await this.api.createForumTopic(this.chatId, topicName);
+    } catch (err: unknown) {
+      if (!(err instanceof TelegramMigrationError)) throw err;
+      const newChatId = err.migrateToChatId;
+      this.logger.info(
+        `[topic-manager] Chat upgraded to supergroup ${newChatId}; retrying topic creation`,
+      );
+      this.chatId = newChatId;
+      try {
+        await this.onChatMigrated?.(newChatId);
+      } catch (cbErr: unknown) {
+        const msg = cbErr instanceof Error ? cbErr.message : String(cbErr);
+        this.logger.warn(`[topic-manager] onChatMigrated callback failed: ${msg}`);
+      }
+      return await this.api.createForumTopic(this.chatId, topicName);
+    }
   }
 
   get machineId(): string {
@@ -87,7 +119,7 @@ export class TopicManager {
           : `${label} #${this.topicCounter}`.slice(0, TELEGRAM_TOPIC_NAME_LIMIT);
 
       this.logger.info(`Creating forum topic "${topicName}" for session ${sessionId}`);
-      const topic: ForumTopic = await this.api.createForumTopic(this.chatId, topicName);
+      const topic: ForumTopic = await this.createTopicWithMigration(topicName);
       const threadId = topic.message_thread_id;
 
       this.sessionToTopic.set(sessionId, threadId);

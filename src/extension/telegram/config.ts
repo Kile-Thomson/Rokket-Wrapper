@@ -43,7 +43,10 @@ export async function saveTelegramConfig(
   await config.update("telegramChatTitle", telegramConfig.chatTitle, configTarget);
   await config.update("telegramBotUsername", telegramConfig.botUsername, configTarget);
   await config.update("telegramStreamingGranularity", telegramConfig.streamingGranularity, configTarget);
-  if (telegramConfig.ownerId) await config.update("telegramOwnerId", telegramConfig.ownerId, configTarget);
+  // Always write the owner key: a truthy id locks the bot, while a falsy id
+  // (0/unset) must clear any previously persisted owner so the bot re-opens
+  // rather than staying locked to a stale owner.
+  await config.update("telegramOwnerId", telegramConfig.ownerId || undefined, configTarget);
 }
 
 export async function clearTelegramConfig(

@@ -205,7 +205,7 @@ async function finishSetup(
     output.appendLine(`[telegram-setup] Test message failed: ${msg}`);
   }
 
-  const config = vscode.workspace.getConfiguration("gsd");
+  const config = vscode.workspace.getConfiguration("rokketWrapper");
   const telegramCfg: TelegramConfig = {
     botToken: token,
     botUsername: me.username ?? me.first_name,
@@ -248,7 +248,7 @@ export async function updateTelegramStatusBar(
   statusBarItem: vscode.StatusBarItem,
   context: vscode.ExtensionContext,
 ): Promise<void> {
-  const config = vscode.workspace.getConfiguration("gsd");
+  const config = vscode.workspace.getConfiguration("rokketWrapper");
   const telegramConfig = await loadTelegramConfig(context.secrets, config);
   if (telegramConfig) {
     statusBarItem.tooltip = `${statusBarItem.tooltip ?? "RokketWrapper"}\n$(comment-discussion) Telegram: Connected`;

@@ -623,17 +623,8 @@ export class TelegramBridge {
     const data = query.data;
     if (!data) return;
 
-    // Owner gate (opt-in): inline button taps (restart / question answers) are
-    // side-effectful, so they respect the same boundary as messages. When an
-    // owner is configured, only that user may trigger callbacks; others get a
-    // dismissive ack (clears the client spinner) and the action is dropped.
-    if (this.ownerId && query.from.id !== this.ownerId) {
-      this.logger.info(
-        `[telegram-bridge] Callback denied — sender ${query.from.id} is not owner ${this.ownerId}`,
-      );
-      await this.api.answerCallbackQuery(query.id, "Not authorized").catch((err: unknown) => console.warn("[telegram]", err instanceof Error ? err.message : err));
-      return;
-    }
+    // Note: the owner gate for callbacks lives in handleUpdates (the single
+    // dispatch choke point), so non-owner taps never reach this handler.
 
     if (data.startsWith("restart:")) {
       const sessionId = data.slice("restart:".length);

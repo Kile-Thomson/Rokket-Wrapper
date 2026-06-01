@@ -79,6 +79,7 @@ export class WorkflowFsWatcher {
   private readonly runs = new Map<string, RunTracker>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
+  private stopped = false;
   private inFlight = false;
   private startedAt = 0;
   /** Logged once so a wrong slug / missing dir is diagnosable without spam. */
@@ -104,6 +105,7 @@ export class WorkflowFsWatcher {
 
   start(): void {
     if (this.timer || this.disposed) return;
+    this.stopped = false;
     this.startedAt = Date.now();
     this.output.appendLine(`[${this.sessionId}] Workflow live watcher: ${this.projectRoot()}`);
     void this.tick();
@@ -151,6 +153,7 @@ export class WorkflowFsWatcher {
   // --- Internal ---
 
   private stop(): void {
+    this.stopped = true;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
@@ -259,6 +262,12 @@ export class WorkflowFsWatcher {
     if (!journal) return; // not started writing yet — nothing to show
 
     const endFile = await readEndFile(d.endFilePath);
+
+    // onProcessExit()/dispose() may have torn us down while we awaited disk above.
+    // Bail so a resumed tick can't re-add a cleared run and re-post a live card
+    // after its retraction was already sent — the interval is gone, so nothing
+    // would ever retract it again.
+    if (this.disposed || this.stopped) return;
 
     if (!run) {
       // Only surface runs that were active at/after the watcher started.

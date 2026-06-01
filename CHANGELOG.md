@@ -14,6 +14,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `rokketWrapper.workflowLivePanel` setting (default on) to toggle the live card
 - `rokketWrapper.workflowDiagnostics` setting (default off) — opt-in overlay for troubleshooting live-card delivery
 
+### Fixed
+- Live workflow watcher: a tick whose disk reads were in flight when the process crashed could resume and re-post a live card the (already-stopped) poll loop would never retract, stranding a stale "running" panel. The poll now bails on teardown after each await
+
 ---
 
 ## [0.1.16] — 2026-05-22

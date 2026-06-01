@@ -227,4 +227,25 @@ describe("WorkflowFsWatcher live discovery", () => {
     const removed = h.posts.filter((m) => m.type === "workflow_live_remove");
     expect(removed).toEqual([{ type: "workflow_live_remove", runId: RUN_ID }]);
   });
+
+  it("does not re-post a live card when onProcessExit races a mid-flight tick", async () => {
+    const h = makeHandle();
+    fs.writeFileSync(h.journalPath, JSON.stringify({ type: "started", agentId: "a1", label: "alpha" }) + "\n");
+    await h.tick();
+    expect(livePosts(h.posts).length).toBeGreaterThan(0);
+    const before = h.posts.length;
+
+    // Start a tick, then tear down before its awaited disk reads resolve. The
+    // resumed process() must bail on the teardown guard — otherwise it re-adds the
+    // cleared run and re-posts a live card the (now-gone) interval can't retract.
+    const racing = h.tick();
+    h.watcher.onProcessExit();
+    await racing;
+
+    const after = h.posts.slice(before);
+    expect(after.filter((m) => m.type === "workflow_live")).toHaveLength(0);
+    expect(after.filter((m) => m.type === "workflow_live_remove")).toEqual([
+      { type: "workflow_live_remove", runId: RUN_ID },
+    ]);
+  });
 });

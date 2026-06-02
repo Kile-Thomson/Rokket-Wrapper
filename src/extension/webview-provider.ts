@@ -401,9 +401,12 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
    * session auto-enables Telegram sync once its agent boots.
    */
   private async handleTelegramLaunch(folderPath: string): Promise<void> {
-    const resolved = folderPath.startsWith("~")
-      ? path.join(os.homedir(), folderPath.slice(1))
-      : path.resolve(folderPath);
+    const resolved =
+      folderPath === "~"
+        ? os.homedir()
+        : folderPath.startsWith("~/")
+          ? path.join(os.homedir(), folderPath.slice(2))
+          : path.resolve(folderPath);
 
     if (!fs.existsSync(resolved)) {
       throw new Error(`Folder not found: ${resolved}`);

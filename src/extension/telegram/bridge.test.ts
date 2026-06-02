@@ -5,14 +5,19 @@ import type { TopicManager, TopicManagerLogger } from "./topicManager";
 import type { BridgeClient, BridgeSessionState } from "./bridge";
 import * as fs from "fs";
 
-vi.mock("fs", () => ({
-  existsSync: vi.fn().mockReturnValue(false),
-  readdirSync: vi.fn().mockReturnValue([]),
-  default: {
+vi.mock("fs", () => {
+  const promises = { readdir: vi.fn().mockRejectedValue(new Error("ENOENT")) };
+  return {
     existsSync: vi.fn().mockReturnValue(false),
     readdirSync: vi.fn().mockReturnValue([]),
-  },
-}));
+    promises,
+    default: {
+      existsSync: vi.fn().mockReturnValue(false),
+      readdirSync: vi.fn().mockReturnValue([]),
+      promises,
+    },
+  };
+});
 
 function createMockApi(updates: TelegramUpdate[] = []): TelegramApi {
   let callCount = 0;
@@ -1015,13 +1020,11 @@ describe("TelegramBridge", () => {
   describe("project finder", () => {
     beforeEach(() => {
       setup();
-      vi.mocked(fs.existsSync).mockReturnValue(false);
-      vi.mocked(fs.readdirSync).mockReturnValue([]);
+      vi.mocked(fs.promises.readdir).mockRejectedValue(new Error("ENOENT"));
     });
 
     function mockDirs(baseDir: string, subdirs: string[]) {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readdirSync).mockReturnValue(
+      vi.mocked(fs.promises.readdir).mockResolvedValue(
         subdirs.map((name) => ({
           name,
           isDirectory: () => true,
@@ -1037,52 +1040,52 @@ describe("TelegramBridge", () => {
       );
     }
 
-    it("returns empty when no search dirs configured", () => {
-      expect(bridge.findProjects("rokketdocs")).toEqual([]);
+    it("returns empty when no search dirs configured", async () => {
+      expect(await bridge.findProjects("rokketdocs")).toEqual([]);
     });
 
-    it("finds exact folder name match", () => {
+    it("finds exact folder name match", async () => {
       bridge.setProjectSearchDirs(["/projects"]);
       mockDirs("/projects", ["RokketDocs", "OtherProject"]);
-      const results = bridge.findProjects("rokketdocs");
+      const results = await bridge.findProjects("rokketdocs");
       expect(results).toHaveLength(1);
       expect(results[0]).toContain("RokketDocs");
     });
 
-    it("finds partial match", () => {
+    it("finds partial match", async () => {
       bridge.setProjectSearchDirs(["/projects"]);
       mockDirs("/projects", ["RokketDocs-Frontend", "Backend"]);
-      const results = bridge.findProjects("rokketdocs");
+      const results = await bridge.findProjects("rokketdocs");
       expect(results).toHaveLength(1);
       expect(results[0]).toContain("RokketDocs-Frontend");
     });
 
-    it("strips stop words from query", () => {
+    it("strips stop words from query", async () => {
       bridge.setProjectSearchDirs(["/projects"]);
       mockDirs("/projects", ["RokketDocs", "MyApp"]);
-      const results = bridge.findProjects("hey launch my rokketdocs folder please");
+      const results = await bridge.findProjects("hey launch my rokketdocs folder please");
       expect(results).toHaveLength(1);
       expect(results[0]).toContain("RokketDocs");
     });
 
-    it("ranks exact match higher than partial", () => {
+    it("ranks exact match higher than partial", async () => {
       bridge.setProjectSearchDirs(["/projects"]);
       mockDirs("/projects", ["RokketDocs-Old", "RokketDocs"]);
-      const results = bridge.findProjects("rokketdocs");
+      const results = await bridge.findProjects("rokketdocs");
       expect(results[0]).toContain("RokketDocs");
     });
 
-    it("skips hidden directories", () => {
+    it("skips hidden directories", async () => {
       bridge.setProjectSearchDirs(["/projects"]);
       mockDirs("/projects", [".hidden", "Visible"]);
-      const results = bridge.findProjects("hidden");
+      const results = await bridge.findProjects("hidden");
       expect(results).toEqual([]);
     });
 
-    it("returns empty when all words are stop words", () => {
+    it("returns empty when all words are stop words", async () => {
       bridge.setProjectSearchDirs(["/projects"]);
       mockDirs("/projects", ["SomeProject"]);
-      const results = bridge.findProjects("hey launch my project");
+      const results = await bridge.findProjects("hey launch my project");
       expect(results).toEqual([]);
     });
   });
@@ -1109,13 +1112,11 @@ describe("TelegramBridge", () => {
 
   describe("general chat project launcher", () => {
     beforeEach(() => {
-      vi.mocked(fs.existsSync).mockReturnValue(false);
-      vi.mocked(fs.readdirSync).mockReturnValue([]);
+      vi.mocked(fs.promises.readdir).mockRejectedValue(new Error("ENOENT"));
     });
 
     function mockProjectDirs(subdirs: string[]) {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readdirSync).mockReturnValue(
+      vi.mocked(fs.promises.readdir).mockResolvedValue(
         subdirs.map((name) => ({
           name,
           isDirectory: () => true,
@@ -1199,7 +1200,7 @@ describe("TelegramBridge", () => {
     it("hints to launch a project when dirs are configured but nothing matches", async () => {
       setup();
       bridge.setProjectSearchDirs(["/projects"]);
-      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.promises.readdir).mockResolvedValue([] as any);
 
       await bridge._testInjectUpdates([generalMessage("something unrelated")]);
 
@@ -1227,7 +1228,7 @@ describe("TelegramBridge", () => {
       setup([], new Map(), new Map(), new Map([["s1", { client, isStreaming: false }]]));
       bridge.setGeneralSession("s1");
       bridge.setProjectSearchDirs(["/projects"]);
-      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.promises.readdir).mockResolvedValue([] as any);
 
       await bridge._testInjectUpdates([generalMessage("hello from general")]);
 

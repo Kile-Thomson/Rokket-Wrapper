@@ -8,6 +8,8 @@ export interface TelegramConfig {
   streamingGranularity: "off" | "throttled" | "final-only";
   /** Telegram user id allowed to drive the bot. 0 = no owner configured. */
   ownerId: number;
+  /** Base directories scanned to launch projects from the General topic. */
+  projectSearchDirs: string[];
 }
 
 const SECRET_KEY = "gsd.telegramBotToken";
@@ -29,6 +31,7 @@ export async function loadTelegramConfig(
     chatTitle: config.get<string>("telegramChatTitle", ""),
     streamingGranularity: config.get<"off" | "throttled" | "final-only">("telegramStreamingGranularity", "throttled")!,
     ownerId: config.get<number>("telegramOwnerId", 0),
+    projectSearchDirs: config.get<string[]>("telegramProjectDirs", []),
   };
 }
 

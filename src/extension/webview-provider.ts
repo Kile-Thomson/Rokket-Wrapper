@@ -290,6 +290,12 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     );
     this.bridge.setStreamingGranularity(telegramConfig.streamingGranularity);
     if (telegramConfig.ownerId) this.bridge.setOwnerId(telegramConfig.ownerId);
+    if (telegramConfig.projectSearchDirs.length > 0) {
+      this.bridge.setProjectSearchDirs(telegramConfig.projectSearchDirs);
+    }
+    this.bridge.setOnLaunchRequest(async (folderPath) => {
+      await this.handleTelegramLaunch(folderPath);
+    });
     this.bridge.setOnInboundMessage((sessionId, text, images, opts) => {
       // General-topic messages are routed to the leader session but not mirrored
       // into its webview transcript (they aren't part of that conversation's view).
@@ -384,6 +390,61 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
     if (this.bridge) {
       this.bridge.setOwnerId(ownerId || null);
     }
+  }
+
+  /** globalState flag handing a Telegram-initiated launch to the new window. */
+  private static readonly PENDING_LAUNCH_KEY = "gsd.telegramPendingLaunch";
+
+  /**
+   * Opens a project folder in a new VS Code window in response to a Telegram
+   * launch command. Writes a short-lived pending flag so the new window's
+   * session auto-enables Telegram sync once its agent boots.
+   */
+  private async handleTelegramLaunch(folderPath: string): Promise<void> {
+    const resolved = folderPath.startsWith("~")
+      ? path.join(os.homedir(), folderPath.slice(1))
+      : path.resolve(folderPath);
+
+    if (!fs.existsSync(resolved)) {
+      throw new Error(`Folder not found: ${resolved}`);
+    }
+
+    const pending = { folderPath: resolved, timestamp: Date.now() };
+    await this.context.globalState.update(RokketWrapperWebviewProvider.PENDING_LAUNCH_KEY, pending);
+    this.output.appendLine(`[telegram-launch] Pending launch written for ${resolved}`);
+
+    const uri = vscode.Uri.file(resolved);
+    await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: true });
+  }
+
+  /**
+   * Consumes a pending Telegram launch flag if this freshly-opened window
+   * matches it (and it's fresh, < 120s old), auto-enabling Telegram sync so a
+   * topic appears for the launched project. No-op when no flag is pending.
+   */
+  async checkPendingTelegramLaunch(webview: vscode.Webview, sessionId: string): Promise<void> {
+    const pending = this.context.globalState.get<{ folderPath: string; timestamp: number }>(
+      RokketWrapperWebviewProvider.PENDING_LAUNCH_KEY,
+    );
+    if (!pending) return;
+
+    // Stale flag — discard so a later window doesn't accidentally consume it.
+    const age = Date.now() - pending.timestamp;
+    if (age > 120_000) {
+      await this.context.globalState.update(RokketWrapperWebviewProvider.PENDING_LAUNCH_KEY, undefined);
+      return;
+    }
+
+    const currentFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!currentFolder) return;
+
+    // Normalize for Windows case-insensitivity and mixed separators.
+    const normalize = (p: string) => p.replace(/\\/g, "/").toLowerCase();
+    if (normalize(currentFolder) !== normalize(pending.folderPath)) return;
+
+    await this.context.globalState.update(RokketWrapperWebviewProvider.PENDING_LAUNCH_KEY, undefined);
+    this.output.appendLine(`[telegram-launch] Auto-syncing for launched folder ${currentFolder}`);
+    await this.handleTelegramSyncToggle(sessionId, webview);
   }
 
   // ----------------------------------------------------------------
@@ -817,6 +878,12 @@ export class RokketWrapperWebviewProvider implements vscode.WebviewViewProvider 
         session.workflowFsWatcher = fsWatcher;
         fsWatcher.start();
       }
+
+      // If this window was opened by a Telegram /launch command, auto-enable
+      // Telegram sync now that the agent is up so a topic appears for it.
+      this.checkPendingTelegramLaunch(webview, sessionId).catch((err: unknown) => {
+        this.output.appendLine(`[telegram-launch] Auto-sync check failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       const providerName = agentBackend === "codex" ? "Codex" : "Claude Code";

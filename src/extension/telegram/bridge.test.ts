@@ -3,6 +3,16 @@ import { TelegramBridge } from "./bridge";
 import type { TelegramApi, TelegramUpdate } from "./api";
 import type { TopicManager, TopicManagerLogger } from "./topicManager";
 import type { BridgeClient, BridgeSessionState } from "./bridge";
+import * as fs from "fs";
+
+vi.mock("fs", () => ({
+  existsSync: vi.fn().mockReturnValue(false),
+  readdirSync: vi.fn().mockReturnValue([]),
+  default: {
+    existsSync: vi.fn().mockReturnValue(false),
+    readdirSync: vi.fn().mockReturnValue([]),
+  },
+}));
 
 function createMockApi(updates: TelegramUpdate[] = []): TelegramApi {
   let callCount = 0;
@@ -999,6 +1009,229 @@ describe("TelegramBridge", () => {
       }]);
       expect(client.prompt).toHaveBeenCalledWith("has text", undefined);
       expect(api.getFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("project finder", () => {
+    beforeEach(() => {
+      setup();
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(fs.readdirSync).mockReturnValue([]);
+    });
+
+    function mockDirs(baseDir: string, subdirs: string[]) {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue(
+        subdirs.map((name) => ({
+          name,
+          isDirectory: () => true,
+          isFile: () => false,
+          isBlockDevice: () => false,
+          isCharacterDevice: () => false,
+          isFIFO: () => false,
+          isSocket: () => false,
+          isSymbolicLink: () => false,
+          path: baseDir,
+          parentPath: baseDir,
+        })) as any,
+      );
+    }
+
+    it("returns empty when no search dirs configured", () => {
+      expect(bridge.findProjects("rokketdocs")).toEqual([]);
+    });
+
+    it("finds exact folder name match", () => {
+      bridge.setProjectSearchDirs(["/projects"]);
+      mockDirs("/projects", ["RokketDocs", "OtherProject"]);
+      const results = bridge.findProjects("rokketdocs");
+      expect(results).toHaveLength(1);
+      expect(results[0]).toContain("RokketDocs");
+    });
+
+    it("finds partial match", () => {
+      bridge.setProjectSearchDirs(["/projects"]);
+      mockDirs("/projects", ["RokketDocs-Frontend", "Backend"]);
+      const results = bridge.findProjects("rokketdocs");
+      expect(results).toHaveLength(1);
+      expect(results[0]).toContain("RokketDocs-Frontend");
+    });
+
+    it("strips stop words from query", () => {
+      bridge.setProjectSearchDirs(["/projects"]);
+      mockDirs("/projects", ["RokketDocs", "MyApp"]);
+      const results = bridge.findProjects("hey launch my rokketdocs folder please");
+      expect(results).toHaveLength(1);
+      expect(results[0]).toContain("RokketDocs");
+    });
+
+    it("ranks exact match higher than partial", () => {
+      bridge.setProjectSearchDirs(["/projects"]);
+      mockDirs("/projects", ["RokketDocs-Old", "RokketDocs"]);
+      const results = bridge.findProjects("rokketdocs");
+      expect(results[0]).toContain("RokketDocs");
+    });
+
+    it("skips hidden directories", () => {
+      bridge.setProjectSearchDirs(["/projects"]);
+      mockDirs("/projects", [".hidden", "Visible"]);
+      const results = bridge.findProjects("hidden");
+      expect(results).toEqual([]);
+    });
+
+    it("returns empty when all words are stop words", () => {
+      bridge.setProjectSearchDirs(["/projects"]);
+      mockDirs("/projects", ["SomeProject"]);
+      const results = bridge.findProjects("hey launch my project");
+      expect(results).toEqual([]);
+    });
+  });
+
+  describe("parseLaunchCommand", () => {
+    beforeEach(() => setup());
+
+    it("parses an explicit /launch <path>", () => {
+      expect(bridge.parseLaunchCommand("/launch /tmp/foo")).toBe("/tmp/foo");
+    });
+
+    it("parses natural 'open <path>'", () => {
+      expect(bridge.parseLaunchCommand("open /tmp/bar")).toBe("/tmp/bar");
+    });
+
+    it("parses natural 'launch gsd in <path>'", () => {
+      expect(bridge.parseLaunchCommand("launch gsd in /tmp/baz")).toBe("/tmp/baz");
+    });
+
+    it("returns null for a non-launch message", () => {
+      expect(bridge.parseLaunchCommand("hello there")).toBeNull();
+    });
+  });
+
+  describe("general chat project launcher", () => {
+    beforeEach(() => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(fs.readdirSync).mockReturnValue([]);
+    });
+
+    function mockProjectDirs(subdirs: string[]) {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readdirSync).mockReturnValue(
+        subdirs.map((name) => ({
+          name,
+          isDirectory: () => true,
+          isFile: () => false,
+          isBlockDevice: () => false,
+          isCharacterDevice: () => false,
+          isFIFO: () => false,
+          isSocket: () => false,
+          isSymbolicLink: () => false,
+          path: "/projects",
+          parentPath: "/projects",
+        })) as any,
+      );
+    }
+
+    function generalMessage(text: string): TelegramUpdate {
+      return {
+        update_id: 1,
+        message: {
+          message_id: 1,
+          from: { id: 99, is_bot: false, first_name: "User" },
+          chat: { id: CHAT_ID, type: "supergroup" },
+          text,
+          // no message_thread_id → General topic
+        },
+      } as TelegramUpdate;
+    }
+
+    it("auto-launches when a single project matches", async () => {
+      setup();
+      const launchHandler = vi.fn().mockResolvedValue(undefined);
+      bridge.setOnLaunchRequest(launchHandler);
+      bridge.setProjectSearchDirs(["/projects"]);
+      mockProjectDirs(["RokketDocs"]);
+
+      await bridge._testInjectUpdates([generalMessage("hey launch rokketdocs")]);
+
+      expect(launchHandler).toHaveBeenCalled();
+      expect(launchHandler.mock.calls[0][0]).toContain("RokketDocs");
+    });
+
+    it("launches an explicit /launch <path> literally", async () => {
+      setup();
+      const launchHandler = vi.fn().mockResolvedValue(undefined);
+      bridge.setOnLaunchRequest(launchHandler);
+      bridge.setProjectSearchDirs(["/projects"]);
+
+      await bridge._testInjectUpdates([generalMessage("/launch /tmp/explicit")]);
+
+      expect(launchHandler).toHaveBeenCalledWith("/tmp/explicit");
+    });
+
+    it("posts a numbered list when several projects match", async () => {
+      setup();
+      bridge.setProjectSearchDirs(["/projects"]);
+      mockProjectDirs(["RokketDocs", "RokketDocsV2"]);
+
+      await bridge._testInjectUpdates([generalMessage("rokketdocs")]);
+
+      expect(api.sendMessage).toHaveBeenCalledWith(
+        CHAT_ID,
+        expect.stringContaining("Found multiple matches"),
+        expect.anything(),
+      );
+    });
+
+    it("launches the chosen project on a numbered reply", async () => {
+      setup();
+      const launchHandler = vi.fn().mockResolvedValue(undefined);
+      bridge.setOnLaunchRequest(launchHandler);
+      bridge.setProjectSearchDirs(["/projects"]);
+      mockProjectDirs(["RokketDocs", "RokketDocsV2"]);
+
+      await bridge._testInjectUpdates([generalMessage("rokketdocs")]);
+      await bridge._testInjectUpdates([generalMessage("2")]);
+
+      expect(launchHandler).toHaveBeenCalledTimes(1);
+      expect(launchHandler.mock.calls[0][0]).toContain("RokketDocsV2");
+    });
+
+    it("hints to launch a project when dirs are configured but nothing matches", async () => {
+      setup();
+      bridge.setProjectSearchDirs(["/projects"]);
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      await bridge._testInjectUpdates([generalMessage("something unrelated")]);
+
+      expect(api.sendMessage).toHaveBeenCalledWith(
+        CHAT_ID,
+        expect.stringContaining("Try telling me which project to launch"),
+        expect.anything(),
+      );
+    });
+
+    it("falls back to the sync hint when no dirs and no session", async () => {
+      setup();
+
+      await bridge._testInjectUpdates([generalMessage("some message")]);
+
+      expect(api.sendMessage).toHaveBeenCalledWith(
+        CHAT_ID,
+        expect.stringContaining("No session is linked to General"),
+        expect.anything(),
+      );
+    });
+
+    it("routes to the leader session when nothing matches but a session exists", async () => {
+      const client = createMockClient();
+      setup([], new Map(), new Map(), new Map([["s1", { client, isStreaming: false }]]));
+      bridge.setGeneralSession("s1");
+      bridge.setProjectSearchDirs(["/projects"]);
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      await bridge._testInjectUpdates([generalMessage("hello from general")]);
+
+      expect(client.prompt).toHaveBeenCalledWith("hello from general", undefined);
     });
   });
 });

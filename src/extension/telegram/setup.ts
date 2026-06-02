@@ -229,6 +229,9 @@ async function finishSetup(
     chatTitle,
     streamingGranularity: "throttled",
     ownerId,
+    // Settings-managed; carried through so the type is satisfied without
+    // clobbering a user-configured value (saveTelegramConfig never persists it).
+    projectSearchDirs: config.get<string[]>("telegramProjectDirs", []),
   };
   await saveTelegramConfig(
     context.secrets,

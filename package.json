@@ -2,7 +2,7 @@
 	"name": "rokketek-wrapper",
 	"displayName": "Claude Code & Codex GUI – RokketWrapper",
 	"description": "A premium VS Code GUI for Claude Code and Codex CLI — streaming chat UI, Telegram relay, voice input, and tool visualizations.",
-	"version": "0.1.21",
+	"version": "0.1.22",
 	"publisher": "rokketek",
 	"license": "MIT",
 	"repository": {
@@ -157,6 +157,14 @@
 					"type": "number",
 					"default": 0,
 					"description": "Optional. Your Telegram user ID. When set, only this user can drive the bot from Telegram; leave at 0 to let anyone in the chat use it. Send /whoami in the group to find your ID."
+				},
+				"rokketWrapper.telegramProjectDirs": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"description": "Base directories searched when launching projects from the Telegram General topic. Message the bot in General (e.g. \"open RokketDocs\") to open a matching folder in a new window. E.g. [\"G:/Dropbox/Rocket Social/Rokketek/Software\"]."
 				},
 				"rokketWrapper.voiceTranscriptionProvider": {
 					"type": "string",

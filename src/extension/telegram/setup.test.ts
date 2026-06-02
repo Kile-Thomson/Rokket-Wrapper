@@ -167,6 +167,7 @@ describe("runTelegramSetup", () => {
       chatTitle: CHAT.title,
       streamingGranularity: "throttled",
       ownerId: 0,
+      projectSearchDirs: [],
     });
   });
 
@@ -344,7 +345,7 @@ describe("runTelegramSetup", () => {
 
 describe("updateTelegramStatusBar", () => {
   it("appends Telegram status to tooltip when config exists", async () => {
-    savedConfig = { botToken: TOKEN, botUsername: "testbot", chatId: CHAT.id, chatTitle: CHAT.title, streamingGranularity: "throttled", ownerId: 0 };
+    savedConfig = { botToken: TOKEN, botUsername: "testbot", chatId: CHAT.id, chatTitle: CHAT.title, streamingGranularity: "throttled", ownerId: 0, projectSearchDirs: [] };
     const statusBar = { tooltip: "RokketWrapper" } as vscode.StatusBarItem;
 
     await updateTelegramStatusBar(statusBar, mockContext());

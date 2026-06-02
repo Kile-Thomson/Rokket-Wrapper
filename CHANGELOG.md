@@ -7,6 +7,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.22] — 2026-06-02
+
+### Added
+- Launch projects from Telegram: message the bot in the supergroup's **General** topic to open a project in a new VS Code window. Natural language (`open RokketDocs`, `launch the gauge project`) fuzzy-matches folder names under the configured search dirs — a single match opens immediately, multiple matches post a numbered shortlist to choose from — and `/launch <path>` opens an explicit path. The launched window auto-enables Telegram sync once its agent boots, so a fresh topic appears for it. Launch commands obey the owner gate
+- New `rokketWrapper.telegramProjectDirs` setting — base directories scanned for project launches (e.g. `["G:/Dropbox/Rocket Social/Rokketek/Software"]`). Empty by default, which leaves the launcher off
+
 ## [0.1.21] — 2026-06-01
 
 ### Added

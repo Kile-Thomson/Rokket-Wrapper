@@ -4,6 +4,8 @@ import { TranscriptionError } from "../openai/transcribe";
 import { truncateMessage, markdownToTelegramHtml, escapeHtml } from "./formatter";
 import type { TopicManager, TopicManagerLogger } from "./topicManager";
 import { PollerCoordinator } from "./poller-coordinator";
+import * as fs from "fs";
+import * as path from "path";
 
 export interface SessionResolver {
   (sessionId: string): BridgeSessionState | undefined;
@@ -45,6 +47,7 @@ interface QueuedMessage {
 
 export type InboundMessageCallback = (sessionId: string, text: string, images?: BridgeImage[], opts?: { isGeneralTopic?: boolean }) => void;
 export type RestartRequestCallback = (sessionId: string) => Promise<boolean>;
+export type LaunchRequestCallback = (folderPath: string) => Promise<void>;
 
 interface PendingQuestion {
   resolve: (value: string | null) => void;
@@ -76,6 +79,12 @@ export class TelegramBridge {
   private generalSessionId: string | null = null;
   /** Telegram user id allowed to drive the bot. null = no owner gate. */
   private ownerId: number | null = null;
+  /** Fired when a General-topic message resolves to a project to open. */
+  private onLaunchRequest: LaunchRequestCallback | undefined;
+  /** Base directories scanned by findProjects. Empty = launcher disabled. */
+  private projectSearchDirs: string[] = [];
+  /** Ranked dirs from the last multi-match search, awaiting a numbered reply. */
+  private pendingLaunchChoices: string[] = [];
   // Per-session response thread captured while a message is being delivered.
   // null = General topic (omit message_thread_id), number = a specific topic thread.
   private readonly activeResponseThread = new Map<string, number | null>();
@@ -143,6 +152,67 @@ export class TelegramBridge {
 
   setOwnerId(id: number | null): void {
     this.ownerId = id;
+  }
+
+  setOnLaunchRequest(cb: LaunchRequestCallback): void {
+    this.onLaunchRequest = cb;
+  }
+
+  setProjectSearchDirs(dirs: string[]): void {
+    this.projectSearchDirs = dirs;
+  }
+
+  /**
+   * Fuzzy-matches a free-text query against directory names under the
+   * configured search dirs. Strips conversational stop-words, normalizes
+   * separators, and scores exact (3) over substring (2) matches. Returns the
+   * matching absolute paths sorted best-first, or [] when nothing scores.
+   */
+  findProjects(query: string): string[] {
+    const stopWords = new Set([
+      "hey", "hi", "hello", "please", "can", "you", "the", "a", "an",
+      "my", "in", "it", "its", "is", "at", "to", "for", "of", "on",
+      "and", "or", "with", "this", "that", "from", "i", "me",
+      "folder", "folders", "directory", "dir", "project", "projects",
+      "launch", "open", "start", "go", "find", "switch", "load",
+      "gsd", "vscode", "code", "session", "workspace", "up",
+    ]);
+    const words = query
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, "")
+      .split(/\s+/)
+      .filter((w) => w.length > 1 && !stopWords.has(w));
+
+    if (words.length === 0 || this.projectSearchDirs.length === 0) return [];
+
+    const matches: { dir: string; score: number }[] = [];
+
+    for (const baseDir of this.projectSearchDirs) {
+      if (!fs.existsSync(baseDir)) continue;
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(baseDir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith(".")) continue;
+        const folderLower = entry.name.toLowerCase().replace(/[-_\s]/g, "");
+        const score = words.reduce((s, w) => {
+          const wNorm = w.replace(/[-_\s]/g, "");
+          if (folderLower === wNorm) return s + 3;
+          if (folderLower.includes(wNorm) && wNorm.length >= 3) return s + 2;
+          return s;
+        }, 0);
+        if (score >= 2) {
+          matches.push({ dir: path.join(baseDir, entry.name), score });
+        }
+      }
+    }
+
+    matches.sort((a, b) => b.score - a.score);
+    return matches.map((m) => m.dir);
   }
 
   /**
@@ -272,8 +342,25 @@ export class TelegramBridge {
 
       const isGeneralTopic = message.message_thread_id == null;
 
-      // General topic (no thread id): route to the General session if one exists.
+      // General topic (no thread id) is the command channel: numbered replies to
+      // a prior launch shortlist, explicit /launch paths, and natural-language
+      // project searches are all resolved here before falling back to the
+      // General-topic leader session.
       if (isGeneralTopic) {
+        // Reply to a prior multi-match launch shortlist (e.g. "2").
+        if (await this.tryNumberedSelection(rawText)) continue;
+
+        // Explicit /launch <path> — treated as a literal path.
+        const launchPath = this.parseLaunchCommand(rawText);
+        if (rawText.trim().startsWith("/") && launchPath) {
+          await this.handleLaunchCommand(launchPath);
+          continue;
+        }
+
+        // Natural-language project search ("open RokketDocs").
+        if (await this.tryProjectSearch(rawText)) continue;
+
+        // Otherwise route to the General-topic leader session if one exists.
         if (this.generalSessionId && rawText) {
           this.enqueueMessage(this.generalSessionId, {
             text: rawText,
@@ -288,11 +375,10 @@ export class TelegramBridge {
           continue;
         }
         this.logger.info("[telegram-bridge] General topic: no general session");
-        await this.sendToThread(
-          null,
-          "💬 No session is linked to General yet. Turn on Telegram sync for a session from the RokketWrapper sidebar, then chat here.",
-          { parse_mode: "HTML" },
-        ).catch(() => {});
+        const hint = this.projectSearchDirs.length > 0
+          ? "💬 No active session. Try telling me which project to launch — e.g. \"open RokketDocs\"."
+          : "💬 No session is linked to General yet. Turn on Telegram sync for a session from the RokketWrapper sidebar, then chat here.";
+        await this.sendToThread(null, hint, { parse_mode: "HTML" }).catch(() => {});
         continue;
       }
 
@@ -361,6 +447,76 @@ export class TelegramBridge {
       const text = rawText;
       const routeLabel = isSlashCommand ? "command" : hasPhoto ? "photo" : "text";
       this.enqueueMessage(sessionId, { text, images, routeLabel, originThreadId, isGeneralTopic: false });
+    }
+  }
+
+  /**
+   * Extracts a folder path from an explicit `/launch <path>` or natural
+   * `launch <path>` / `open <path>` command. Returns the literal path, or null
+   * when the text isn't a launch command.
+   */
+  parseLaunchCommand(text: string): string | null {
+    const trimmed = text.trim();
+    // /launch <path>
+    const slashMatch = trimmed.match(/^\/launch\s+(.+)$/i);
+    if (slashMatch) return slashMatch[1].trim();
+    // "launch gsd in <path>" / "launch <path>" / "open <path>"
+    const naturalMatch = trimmed.match(/^(?:launch\s+(?:gsd\s+in\s+)?|open\s+(?:project\s+)?)(.+)$/i);
+    if (naturalMatch) return naturalMatch[1].trim();
+    return null;
+  }
+
+  /**
+   * Fuzzy-searches the configured dirs for the query. One match launches
+   * immediately; several post a numbered shortlist stashed for the next reply.
+   * Returns true when the message was handled as a project search.
+   */
+  private async tryProjectSearch(text: string): Promise<boolean> {
+    if (this.projectSearchDirs.length === 0) return false;
+    const matches = this.findProjects(text);
+    if (matches.length === 0) return false;
+    if (matches.length === 1) {
+      await this.handleLaunchCommand(matches[0]);
+      return true;
+    }
+    const top = matches.slice(0, 5);
+    this.pendingLaunchChoices = top;
+    const lines = top.map((p, i) => `${i + 1}. ${escapeHtml(path.basename(p))}`);
+    lines.unshift("Found multiple matches — reply with a number:");
+    await this.sendToThread(null, lines.join("\n"), { parse_mode: "HTML" }).catch(() => {});
+    return true;
+  }
+
+  /**
+   * Resolves a bare numeric reply against a prior multi-match shortlist and
+   * launches the chosen project. Returns false when there is no pending
+   * shortlist or the reply isn't a valid choice.
+   */
+  private async tryNumberedSelection(text: string): Promise<boolean> {
+    if (this.pendingLaunchChoices.length === 0) return false;
+    const num = parseInt(text.trim(), 10);
+    if (isNaN(num) || num < 1 || num > this.pendingLaunchChoices.length) return false;
+    const chosen = this.pendingLaunchChoices[num - 1];
+    this.pendingLaunchChoices = [];
+    await this.handleLaunchCommand(chosen);
+    return true;
+  }
+
+  /** Fires the launch callback for a resolved folder, reporting 🚀/✅/❌ to General. */
+  private async handleLaunchCommand(folderPath: string): Promise<void> {
+    this.logger.info(`[telegram-bridge] Launch command: "${folderPath}"`);
+    if (!this.onLaunchRequest) {
+      await this.sendToThread(null, "⚠️ Launch is not available — no handler configured.").catch(() => {});
+      return;
+    }
+    await this.sendToThread(null, `🚀 Launching in <code>${escapeHtml(folderPath)}</code>…`, { parse_mode: "HTML" }).catch(() => {});
+    try {
+      await this.onLaunchRequest(folderPath);
+      await this.sendToThread(null, `✅ Opened <code>${escapeHtml(folderPath)}</code> — a new topic will appear when sync starts.`, { parse_mode: "HTML" }).catch(() => {});
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      this.logger.info(`[telegram-bridge] Launch failed: ${errMsg}`);
+      await this.sendToThread(null, `❌ Launch failed: ${escapeHtml(errMsg)}`, { parse_mode: "HTML" }).catch(() => {});
     }
   }
 

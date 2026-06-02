@@ -40,6 +40,7 @@ const SAMPLE_CONFIG: TelegramConfig = {
   chatTitle: "Test Group",
   streamingGranularity: "throttled",
   ownerId: 0,
+  projectSearchDirs: [],
 };
 
 describe("TelegramConfig", () => {

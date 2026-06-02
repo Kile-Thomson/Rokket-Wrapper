@@ -97,7 +97,8 @@ Use the **Sync** button in the panel header to link the current session to your 
 Once connected, the bridge:
 
 - Creates a new **forum topic** per session, so each conversation stays in its own thread
-- Routes messages you send in the supergroup's **General** topic (the default thread, which has no per-session topic) to your first synced session, so you can chat without picking a topic; if no session is synced it replies with a hint to turn on sync
+- Treats the supergroup's **General** topic (the default thread, which has no per-session topic) as a command channel: messages there can **launch a project** (see below), and anything that isn't a launch command routes to your first synced session so you can chat without picking a topic; if no session is synced it replies with a hint
+- **Launches projects on demand** — message the bot in the General topic (e.g. `open RokketDocs` or `/launch <path>`) and it opens the matching folder in a new VS Code window, then auto-enables Telegram sync so a fresh topic appears for it (requires `rokketWrapper.telegramProjectDirs`)
 - Forwards your Telegram messages to the active session and streams responses back as edited messages (controlled by `rokketWrapper.telegramStreamingGranularity`)
 - Shows **tool execution status** inline (`⏳` in-progress → `✅` done / `❌` error, with elapsed time)
 - Shows a **typing indicator** while the agent is working
@@ -111,6 +112,19 @@ Send a voice message in the group and the bridge downloads the audio, transcribe
 #### Photo support
 
 Photos sent to the group are downloaded and injected directly into the prompt as image attachments.
+
+#### Launching projects from Telegram
+
+Set `rokketWrapper.telegramProjectDirs` to one or more base directories (e.g. your `Software` folder) and you can open projects straight from the **General** topic — handy when you're away from your machine:
+
+- **Natural language** — `open RokketDocs`, `launch the gauge project`. The bot fuzzy-matches folder names under your search dirs (stop-words like "open", "the", "please" are ignored). A single match opens immediately; several matches post a numbered shortlist — reply with the number to pick one.
+- **Explicit path** — `/launch <path>` opens that exact folder (supports `~`).
+
+The folder opens in a **new VS Code window**; once its agent boots, Telegram sync turns on automatically and a new forum topic appears for the launched session. Launch commands obey the owner gate, so when an owner is set only they can open projects.
+
+```jsonc
+"rokketWrapper.telegramProjectDirs": ["G:/Dropbox/Rocket Social/Rokketek/Software"]
+```
 
 ## Configuration
 
@@ -129,6 +143,7 @@ Photos sent to the group are downloaded and injected directly into the prompt as
 | `rokketWrapper.telegramBotUsername` | Telegram bot username (set automatically) | `""` |
 | `rokketWrapper.telegramStreamingGranularity` | How responses stream to Telegram: `off`, `throttled`, `final-only` | `throttled` |
 | `rokketWrapper.telegramOwnerId` | Telegram user id allowed to drive the bot (send `/whoami` to find yours; `0` = no owner set, bot stays open to anyone) | `0` |
+| `rokketWrapper.telegramProjectDirs` | Base directories searched when launching projects from the Telegram General topic (e.g. `open RokketDocs`) | `[]` |
 | `rokketWrapper.voiceTranscriptionProvider` | Voice provider: `openai`, `azure`, `xai` | `openai` |
 | `rokketWrapper.azureSpeechRegion` | Azure Speech Services region | `eastus` |
 

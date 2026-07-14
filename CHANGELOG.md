@@ -7,6 +7,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- `npm run compile` now works. README and CONTRIBUTING document it as the build command, but the script didn't exist in `package.json` (only `build` did); it's now an alias for `npm run build`
+
+---
+
 ## [0.1.23] — 2026-07-06
 
 ### Changed

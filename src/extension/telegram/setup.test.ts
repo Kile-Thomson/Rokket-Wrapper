@@ -299,7 +299,7 @@ describe("runTelegramSetup", () => {
 
     await runTelegramSetup(mockContext());
 
-    expect(mockExecuteCommand).toHaveBeenCalledWith("gsd.setOpenAiApiKey");
+    expect(mockExecuteCommand).toHaveBeenCalledWith("rokketWrapper.setOpenAiApiKey");
   });
 
   it("redacts token in OutputChannel logs on network error", async () => {

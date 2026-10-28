@@ -260,7 +260,7 @@ async function finishSetup(
   );
 
   if (voiceChoice === "Set Up Voice Now") {
-    await vscode.commands.executeCommand("gsd.setOpenAiApiKey");
+    await vscode.commands.executeCommand("rokketWrapper.setOpenAiApiKey");
   }
 }
 

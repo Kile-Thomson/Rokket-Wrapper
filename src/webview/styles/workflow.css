@@ -234,7 +234,7 @@
   overflow-y: auto;
 }
 
-/* --- Diagnostics overlay (opt-in: gsd.workflowDiagnostics) --- */
+/* --- Diagnostics overlay (opt-in: rokketWrapper.workflowDiagnostics) --- */
 
 #gsd-wf-diag {
   position: fixed;

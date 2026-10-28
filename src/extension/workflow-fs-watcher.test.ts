@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-// The watcher reads gsd.workflowLivePanel at runtime; the mock's get() must
+// The watcher reads rokketWrapper.workflowLivePanel at runtime; the mock's get() must
 // honor the supplied default (true) so the panel is enabled during the test.
 vi.mock("vscode", () => ({
   workspace: {

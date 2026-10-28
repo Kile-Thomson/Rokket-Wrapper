@@ -15,7 +15,7 @@
 //     inline card the moment a run starts writing, independent of the turn.
 //
 // This module keeps the two pieces both paths share: `buildPanelHtml` (the card
-// body) and the opt-in diagnostics overlay (gsd.workflowDiagnostics).
+// body) and the opt-in diagnostics overlay (rokketWrapper.workflowDiagnostics).
 // ============================================================
 
 import type { WorkflowProgressData, WorkflowAgentProgress } from "../shared/types";
@@ -23,7 +23,7 @@ import { escapeHtml, escapeAttr, formatTokens, formatDuration } from "./helpers"
 
 // --- Diagnostics overlay -----------------------------------------------------
 //
-// An opt-in heads-up panel (gsd.workflowDiagnostics) that answers the question
+// An opt-in heads-up panel (rokketWrapper.workflowDiagnostics) that answers the question
 // static analysis can't: are workflow progress messages actually reaching the
 // webview, and is the conversation root present to render into? It renders fixed
 // to document.body — deliberately independent of the messages DOM — so it stays
@@ -83,7 +83,7 @@ function stopDiagRefresh(): void {
   }
 }
 
-/** Toggle the diagnostics overlay (driven by the gsd.workflowDiagnostics setting). */
+/** Toggle the diagnostics overlay (driven by the rokketWrapper.workflowDiagnostics setting). */
 export function setDiagnostics(enabled: boolean): void {
   diag.enabled = enabled;
   if (enabled) {
